@@ -4,14 +4,14 @@ import { useMultitracks } from '@/hooks/useMultitracks';
 import { useSalesStats, useTopSelling } from '@/hooks/useSales';
 
 export default function AdminDashboard() {
-  const { data: multitracks } = useMultitracks();
+  const { data } = useMultitracks({});
   const { data: stats } = useSalesStats();
   const { data: topSelling } = useTopSelling();
 
   const statCards = [
     {
       title: 'Total de Multitracks',
-      value: multitracks?.length || 0,
+      value: data?.totalCount || 0,
       icon: Music,
     },
     {

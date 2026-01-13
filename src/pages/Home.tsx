@@ -8,9 +8,9 @@ import { useMultitracks } from '@/hooks/useMultitracks';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: multitracks, isLoading } = useMultitracks(searchQuery);
+  const { data, isLoading } = useMultitracks({ searchQuery, pageSize: 4 });
 
-  const featuredMultitracks = multitracks?.slice(0, 4) || [];
+  const featuredMultitracks = data?.data || [];
 
   return (
     <div className="animate-fade-in">

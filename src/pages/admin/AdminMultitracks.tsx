@@ -36,7 +36,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Multitrack } from '@/types/multitrack';
 
 export default function AdminMultitracks() {
-  const { data: multitracks, isLoading } = useMultitracks();
+  const { data, isLoading } = useMultitracks({});
+  const multitracks = data?.data;
   const createMultitrack = useCreateMultitrack();
   const updateMultitrack = useUpdateMultitrack();
   const deleteMultitrack = useDeleteMultitrack();
