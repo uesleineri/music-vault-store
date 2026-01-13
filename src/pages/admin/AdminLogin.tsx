@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Music, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,10 +17,29 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already logged in as admin
-  if (!loading && user && isAdmin) {
-    navigate('/admin');
-    return null;
+  // Redirect when user becomes authenticated admin
+  useEffect(() => {
+    if (!loading && user && isAdmin) {
+      navigate('/admin', { replace: true });
+    }
+  }, [loading, user, isAdmin, navigate]);
+
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Already logged in as admin, will redirect via useEffect
+  if (user && isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -31,16 +50,15 @@ export default function AdminLogin() {
       await signIn(email, password);
       toast({
         title: 'Login realizado!',
-        description: 'Bem-vindo ao painel administrativo.',
+        description: 'Redirecionando...',
       });
-      navigate('/admin');
+      // Navigation will happen via useEffect when isAdmin updates
     } catch (error: any) {
       toast({
         title: 'Erro ao fazer login',
         description: error.message || 'Verifique suas credenciais.',
         variant: 'destructive',
       });
-    } finally {
       setIsSubmitting(false);
     }
   };
