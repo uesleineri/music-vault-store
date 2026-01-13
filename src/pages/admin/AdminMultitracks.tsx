@@ -49,6 +49,7 @@ export default function AdminMultitracks() {
   });
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +112,26 @@ export default function AdminMultitracks() {
         coverUrl = publicUrl;
       }
 
+      // Upload preview file if provided
+      let previewUrl = null;
+      if (previewFile) {
+        console.log('Uploading preview:', previewFile.name);
+        const previewFileName = `${Date.now()}-${sanitizeFileName(previewFile.name)}`;
+        const { error: previewError } = await supabase.storage
+          .from('previews')
+          .upload(previewFileName, previewFile);
+        
+        if (previewError) {
+          console.error('Preview upload error:', previewError);
+          throw new Error(`Erro no upload do preview: ${previewError.message}`);
+        }
+
+        const { data: { publicUrl: previewPublicUrl } } = supabase.storage
+          .from('previews')
+          .getPublicUrl(previewFileName);
+        previewUrl = previewPublicUrl;
+      }
+
       console.log('Creating multitrack record...');
       
       // Create multitrack record
@@ -120,29 +141,10 @@ export default function AdminMultitracks() {
         price: parseFloat(formData.price),
         file_url: fileUrl,
         cover_url: coverUrl,
-        preview_url: null,
+        preview_url: previewUrl,
       });
 
       console.log('Multitrack created:', newMultitrack);
-
-      // Generate preview automatically in background
-      if (audioFile.type.startsWith('audio/')) {
-        console.log('Triggering preview generation...');
-        supabase.functions.invoke('generate-preview', {
-          body: {
-            multitrack_id: newMultitrack.id,
-            file_path: audioFileName,
-          },
-        }).then((result) => {
-          console.log('Preview generation result:', result);
-          toast({
-            title: 'Preview gerado!',
-            description: 'O preview de áudio foi criado automaticamente.',
-          });
-        }).catch((err) => {
-          console.error('Preview generation error:', err);
-        });
-      }
 
       toast({
         title: 'Multitrack adicionada!',
@@ -153,6 +155,7 @@ export default function AdminMultitracks() {
       setFormData({ artist_name: '', song_name: '', price: '' });
       setCoverFile(null);
       setAudioFile(null);
+      setPreviewFile(null);
     } catch (error: any) {
       console.error('Full error:', error);
       toast({
@@ -244,7 +247,7 @@ export default function AdminMultitracks() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="audio">Arquivo da Multitrack</Label>
+                <Label htmlFor="audio">Arquivo da Multitrack (ZIP/RAR)</Label>
                 <Input
                   id="audio"
                   type="file"
@@ -253,7 +256,19 @@ export default function AdminMultitracks() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  O preview será gerado automaticamente a partir deste arquivo.
+                  Arquivo completo com todas as faixas (stems).
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="preview">Preview de áudio (MP3)</Label>
+                <Input
+                  id="preview"
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,.mp3"
+                  onChange={(e) => setPreviewFile(e.target.files?.[0] || null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Arquivo MP3 curto (30-60 seg) para os clientes ouvirem antes de comprar.
                 </p>
               </div>
               <div className="flex justify-end gap-2 pt-4">
