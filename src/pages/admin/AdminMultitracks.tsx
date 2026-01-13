@@ -88,27 +88,26 @@ export default function AdminMultitracks() {
 
     setIsSearchingCover(true);
     try {
-      const query = `${formData.artist_name} ${formData.song_name}`;
-      const response = await fetch(
-        `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=1`
-      );
-      const data = await response.json();
-      
-      if (data.data && data.data.length > 0) {
-        const coverUrl = data.data[0].album?.cover_xl || data.data[0].album?.cover_big;
-        if (coverUrl) {
-          setCoverPreviewUrl(coverUrl);
-          toast({
-            title: 'Capa encontrada!',
-            description: 'A imagem será usada como capa.',
-          });
-        } else {
-          throw new Error('Capa não encontrada');
-        }
+      const { data, error } = await supabase.functions.invoke('search-cover', {
+        body: {
+          artist: formData.artist_name,
+          song: formData.song_name,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.cover_url) {
+        setCoverPreviewUrl(data.cover_url);
+        toast({
+          title: 'Capa encontrada!',
+          description: `${data.title} - ${data.artist} (${data.source})`,
+        });
       } else {
-        throw new Error('Música não encontrada');
+        throw new Error('Capa não encontrada');
       }
     } catch (error: any) {
+      console.error('Cover search error:', error);
       toast({
         title: 'Capa não encontrada',
         description: 'Tente buscar manualmente ou faça upload de uma imagem.',
