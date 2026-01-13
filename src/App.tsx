@@ -13,6 +13,7 @@ import Home from "@/pages/Home";
 import Catalog from "@/pages/Catalog";
 import MultitrackDetails from "@/pages/MultitrackDetails";
 import Checkout from "@/pages/Checkout";
+import DownloadPage from "@/pages/DownloadPage";
 import NotFound from "@/pages/NotFound";
 
 // Admin pages
@@ -37,6 +38,9 @@ const App = () => (
             <Route path="/multitrack/:id" element={<MultitrackDetails />} />
             <Route path="/checkout/:id" element={<Checkout />} />
           </Route>
+
+          {/* Download page (no layout) */}
+          <Route path="/download/:token" element={<DownloadPage />} />
 
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

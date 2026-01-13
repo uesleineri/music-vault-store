@@ -94,14 +94,31 @@ export default function AdminMultitracks() {
       }
 
       // Create multitrack record
-      await createMultitrack.mutateAsync({
+      const newMultitrack = await createMultitrack.mutateAsync({
         artist_name: formData.artist_name,
         song_name: formData.song_name,
         price: parseFloat(formData.price),
         file_url: fileUrl,
         cover_url: coverUrl,
-        preview_url: null, // TODO: Generate preview automatically
+        preview_url: null,
       });
+
+      // Generate preview automatically in background
+      if (audioFile.type.startsWith('audio/')) {
+        supabase.functions.invoke('generate-preview', {
+          body: {
+            multitrack_id: newMultitrack.id,
+            file_path: audioFileName,
+          },
+        }).then(() => {
+          toast({
+            title: 'Preview gerado!',
+            description: 'O preview de áudio foi criado automaticamente.',
+          });
+        }).catch((err) => {
+          console.error('Preview generation error:', err);
+        });
+      }
 
       toast({
         title: 'Multitrack adicionada!',

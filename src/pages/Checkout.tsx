@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Music, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Music, CheckCircle, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useMultitrack } from '@/hooks/useMultitracks';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Checkout() {
   const { id } = useParams<{ id: string }>();
@@ -14,12 +15,13 @@ export default function Checkout() {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isPaid, setIsPaid] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [saleId, setSaleId] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email) {
+    if (!email || !multitrack) {
       toast({
         title: 'Email obrigatório',
         description: 'Por favor, informe seu email para receber o link de download.',
@@ -30,16 +32,36 @@ export default function Checkout() {
 
     setIsProcessing(true);
 
-    // TODO: Integrate with Asaas payment
-    // For now, simulate payment process
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsPaid(true);
-      toast({
-        title: 'Pagamento processado!',
-        description: 'Você receberá o link de download no seu email.',
+    try {
+      const { data, error } = await supabase.functions.invoke('create-payment', {
+        body: {
+          multitrack_id: multitrack.id,
+          buyer_email: email,
+          amount: multitrack.price,
+          multitrack_name: `${multitrack.artist_name} - ${multitrack.song_name}`,
+        },
       });
-    }, 2000);
+
+      if (error) throw error;
+
+      if (data.payment_url) {
+        setPaymentUrl(data.payment_url);
+        setSaleId(data.sale_id);
+        toast({
+          title: 'Pagamento criado!',
+          description: 'Clique no botão para pagar.',
+        });
+      }
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      toast({
+        title: 'Erro ao processar',
+        description: error.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (isLoading) {
@@ -65,14 +87,15 @@ export default function Checkout() {
     );
   }
 
-  if (isPaid) {
+  if (paymentUrl) {
     return (
       <div className="container py-16 max-w-lg text-center animate-fade-in">
-        <CheckCircle className="h-20 w-20 mx-auto text-success mb-6" />
-        <h1 className="text-3xl font-bold mb-4">Pagamento confirmado!</h1>
+        <div className="h-20 w-20 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-6">
+          <ExternalLink className="h-10 w-10 text-primary" />
+        </div>
+        <h1 className="text-3xl font-bold mb-4">Quase lá!</h1>
         <p className="text-muted-foreground mb-8">
-          O link de download foi enviado para <strong>{email}</strong>. 
-          Verifique sua caixa de entrada.
+          Clique no botão abaixo para finalizar o pagamento. Após a confirmação, você receberá o link de download no email <strong>{email}</strong>.
         </p>
         <Card className="text-left mb-8">
           <CardContent className="p-4 flex items-center gap-4">
@@ -91,11 +114,19 @@ export default function Checkout() {
               <h3 className="font-semibold truncate">{multitrack.song_name}</h3>
               <p className="text-sm text-muted-foreground truncate">{multitrack.artist_name}</p>
             </div>
-            <Button>Baixar agora</Button>
+            <div className="text-lg font-bold">
+              R$ {multitrack.price.toFixed(2).replace('.', ',')}
+            </div>
           </CardContent>
         </Card>
+        <a href={paymentUrl} target="_blank" rel="noopener noreferrer">
+          <Button size="lg" className="w-full gap-2 mb-4">
+            <ExternalLink className="h-5 w-5" />
+            Pagar agora
+          </Button>
+        </a>
         <Link to="/catalog">
-          <Button variant="outline">Continuar comprando</Button>
+          <Button variant="outline" className="w-full">Voltar ao catálogo</Button>
         </Link>
       </div>
     );
@@ -172,7 +203,7 @@ export default function Checkout() {
                       Processando...
                     </>
                   ) : (
-                    'Pagar agora'
+                    'Continuar para pagamento'
                   )}
                 </Button>
               </div>
