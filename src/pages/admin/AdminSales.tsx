@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
-import { format, startOfDay, endOfDay, subDays, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, isWithinInterval, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Music, ShoppingCart, Loader2, Calendar, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -20,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 import { useSales } from '@/hooks/useSales';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -30,30 +31,68 @@ const statusLabels: Record<string, { label: string; variant: 'default' | 'second
 
 const periodOptions = [
   { value: '7', label: 'Últimos 7 dias' },
+  { value: '14', label: 'Últimos 14 dias' },
   { value: '30', label: 'Últimos 30 dias' },
   { value: '90', label: 'Últimos 90 dias' },
-  { value: 'all', label: 'Todo o período' },
 ];
+
+const chartConfig = {
+  vendas: {
+    label: "Vendas",
+    color: "hsl(var(--primary))",
+  },
+  receita: {
+    label: "Receita",
+    color: "hsl(var(--success))",
+  },
+};
 
 export default function AdminSales() {
   const { data: sales, isLoading } = useSales();
   const [period, setPeriod] = useState('30');
 
   // Filter sales by period
-  const filteredSales = useMemo(() => {
-    if (!sales) return [];
-    if (period === 'all') return sales;
-
+  const { filteredSales, startDate, endDate } = useMemo(() => {
     const days = parseInt(period);
-    const startDate = startOfDay(subDays(new Date(), days));
-    const endDate = endOfDay(new Date());
+    const start = startOfDay(subDays(new Date(), days));
+    const end = endOfDay(new Date());
 
-    return sales.filter((sale) =>
-      isWithinInterval(new Date(sale.created_at), { start: startDate, end: endDate })
+    if (!sales) return { filteredSales: [], startDate: start, endDate: end };
+
+    const filtered = sales.filter((sale) =>
+      isWithinInterval(new Date(sale.created_at), { start, end })
     );
+
+    return { filteredSales: filtered, startDate: start, endDate: end };
   }, [sales, period]);
 
-  // Group sales by day
+  // Generate chart data for all days in period
+  const chartData = useMemo(() => {
+    const days = eachDayOfInterval({ start: startDate, end: endDate });
+    
+    return days.map((day) => {
+      const dayStart = startOfDay(day);
+      const dayEnd = endOfDay(day);
+      
+      const daySales = filteredSales.filter((sale) =>
+        isWithinInterval(new Date(sale.created_at), { start: dayStart, end: dayEnd })
+      );
+
+      const vendas = daySales.length;
+      const receita = daySales
+        .filter((s) => s.payment_status === 'paid')
+        .reduce((sum, s) => sum + Number(s.amount), 0);
+
+      return {
+        date: format(day, 'dd/MM'),
+        fullDate: format(day, 'dd/MM/yyyy'),
+        vendas,
+        receita,
+      };
+    });
+  }, [filteredSales, startDate, endDate]);
+
+  // Group sales by day for table
   const salesByDay = useMemo(() => {
     const grouped: Record<string, { date: string; count: number; total: number; paid: number }> = {};
 
@@ -155,11 +194,88 @@ export default function AdminSales() {
         </Card>
       </div>
 
-      {/* Sales by Day */}
-      {salesByDay.length > 0 && (
+      {/* Sales Chart */}
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Vendas por Dia</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  tickLine={false} 
+                  axisLine={false}
+                  fontSize={12}
+                  tickMargin={8}
+                />
+                <YAxis 
+                  tickLine={false} 
+                  axisLine={false}
+                  fontSize={12}
+                  tickMargin={8}
+                  allowDecimals={false}
+                />
+                <ChartTooltip 
+                  content={<ChartTooltipContent />}
+                  cursor={{ fill: 'hsl(var(--muted))' }}
+                />
+                <Bar 
+                  dataKey="vendas" 
+                  fill="hsl(var(--primary))" 
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Receita por Dia</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+              <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  tickLine={false} 
+                  axisLine={false}
+                  fontSize={12}
+                  tickMargin={8}
+                />
+                <YAxis 
+                  tickLine={false} 
+                  axisLine={false}
+                  fontSize={12}
+                  tickMargin={8}
+                  tickFormatter={(value) => `R$${value}`}
+                />
+                <ChartTooltip 
+                  content={<ChartTooltipContent formatter={(value) => `R$ ${Number(value).toFixed(2).replace('.', ',')}`} />}
+                />
+                <Line 
+                  type="monotone"
+                  dataKey="receita" 
+                  stroke="hsl(142 76% 36%)"
+                  strokeWidth={2}
+                  dot={{ fill: 'hsl(142 76% 36%)', strokeWidth: 0, r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Sales by Day Table */}
+      {salesByDay.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Resumo por Dia</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -258,9 +374,7 @@ export default function AdminSales() {
               <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="font-semibold mb-1">Nenhuma venda</h3>
               <p className="text-muted-foreground">
-                {period === 'all' 
-                  ? 'As vendas aparecerão aqui quando forem realizadas.'
-                  : 'Nenhuma venda encontrada neste período.'}
+                Nenhuma venda encontrada neste período.
               </p>
             </div>
           )}
