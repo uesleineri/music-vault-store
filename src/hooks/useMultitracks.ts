@@ -2,22 +2,48 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Multitrack } from '@/types/multitrack';
 
-export function useMultitracks(searchQuery?: string) {
+interface MultitracksParams {
+  searchQuery?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: 'created_at' | 'artist_name' | 'song_name' | 'price';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export function useMultitracks(params: MultitracksParams = {}) {
+  const { 
+    searchQuery, 
+    page = 1, 
+    pageSize = 12, 
+    sortBy = 'created_at', 
+    sortOrder = 'desc' 
+  } = params;
+
   return useQuery({
-    queryKey: ['multitracks', searchQuery],
+    queryKey: ['multitracks', searchQuery, page, pageSize, sortBy, sortOrder],
     queryFn: async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       let query = supabase
         .from('multitracks')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact' })
+        .order(sortBy, { ascending: sortOrder === 'asc' })
+        .range(from, to);
 
       if (searchQuery) {
         query = query.or(`artist_name.ilike.%${searchQuery}%,song_name.ilike.%${searchQuery}%`);
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data as Multitrack[];
+      
+      return {
+        data: data as Multitrack[],
+        totalCount: count || 0,
+        totalPages: Math.ceil((count || 0) / pageSize),
+        currentPage: page,
+      };
     },
   });
 }
