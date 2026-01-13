@@ -1,1 +1,13 @@
 project_id = "nskbbfpciuoredlkezhw"
+
+[functions.create-payment]
+verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.get-download]
+verify_jwt = false
+
+[functions.generate-preview]
+verify_jwt = false
