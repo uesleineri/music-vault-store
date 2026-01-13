@@ -45,6 +45,8 @@ export default function AdminMultitracks() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentUploadStep, setCurrentUploadStep] = useState('');
   const [isSearchingCover, setIsSearchingCover] = useState(false);
   const [editingMultitrack, setEditingMultitrack] = useState<Multitrack | null>(null);
   const [formData, setFormData] = useState({
@@ -160,33 +162,100 @@ export default function AdminMultitracks() {
         .replace(/_+/g, '_'); // Remove multiple underscores
     };
 
+    // Upload with progress tracking using XMLHttpRequest
+    const uploadWithProgress = (
+      bucket: string,
+      fileName: string,
+      file: File,
+      onProgress: (percent: number) => void
+    ): Promise<{ error: Error | null }> => {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${bucket}/${fileName}`;
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percent = (event.loaded / event.total) * 100;
+            onProgress(percent);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve({ error: null });
+          } else {
+            let errorMessage = 'Upload failed';
+            try {
+              const response = JSON.parse(xhr.responseText);
+              errorMessage = response.message || response.error || errorMessage;
+            } catch {
+              errorMessage = xhr.statusText || errorMessage;
+            }
+            resolve({ error: new Error(errorMessage) });
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          resolve({ error: new Error('Network error during upload') });
+        });
+
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`);
+        xhr.setRequestHeader('x-upsert', 'false');
+        xhr.send(file);
+      });
+    };
+
     try {
       let fileUrl = editingMultitrack?.file_url || '';
       let coverUrl = editingMultitrack?.cover_url || null;
       let previewUrl = editingMultitrack?.preview_url || null;
 
+      // Calculate total files to upload for progress tracking
+      const filesToUpload = [audioFile, coverFile, previewFile].filter(Boolean);
+      const totalFiles = filesToUpload.length;
+      let completedFiles = 0;
+
+      const updateOverallProgress = (fileProgress: number) => {
+        const baseProgress = (completedFiles / Math.max(totalFiles, 1)) * 100;
+        const currentFileContribution = (fileProgress / Math.max(totalFiles, 1));
+        setUploadProgress(Math.round(baseProgress + currentFileContribution));
+      };
+
       // Upload audio file if provided
       if (audioFile) {
+        setCurrentUploadStep('Enviando arquivo multitrack...');
         console.log('Starting upload for:', audioFile.name);
         const audioFileName = `${Date.now()}-${sanitizeFileName(audioFile.name)}`;
-        const { error: audioError } = await supabase.storage
-          .from('multitracks')
-          .upload(audioFileName, audioFile);
+        
+        const { error: audioError } = await uploadWithProgress(
+          'multitracks',
+          audioFileName,
+          audioFile,
+          updateOverallProgress
+        );
         
         if (audioError) {
           console.error('Audio upload error:', audioError);
           throw new Error(`Erro no upload: ${audioError.message}`);
         }
         fileUrl = audioFileName;
+        completedFiles++;
+        updateOverallProgress(0);
       }
 
       // Upload cover file if provided
       if (coverFile) {
+        setCurrentUploadStep('Enviando capa...');
         console.log('Uploading cover:', coverFile.name);
         const coverFileName = `${Date.now()}-${sanitizeFileName(coverFile.name)}`;
-        const { error: coverError } = await supabase.storage
-          .from('covers')
-          .upload(coverFileName, coverFile);
+        
+        const { error: coverError } = await uploadWithProgress(
+          'covers',
+          coverFileName,
+          coverFile,
+          updateOverallProgress
+        );
         
         if (coverError) {
           console.error('Cover upload error:', coverError);
@@ -197,6 +266,8 @@ export default function AdminMultitracks() {
           .from('covers')
           .getPublicUrl(coverFileName);
         coverUrl = publicUrl;
+        completedFiles++;
+        updateOverallProgress(0);
       } else if (coverPreviewUrl && coverPreviewUrl !== editingMultitrack?.cover_url) {
         // Use the URL from Deezer search
         coverUrl = coverPreviewUrl;
@@ -204,11 +275,16 @@ export default function AdminMultitracks() {
 
       // Upload preview file if provided
       if (previewFile) {
+        setCurrentUploadStep('Enviando preview de áudio...');
         console.log('Uploading preview:', previewFile.name);
         const previewFileName = `${Date.now()}-${sanitizeFileName(previewFile.name)}`;
-        const { error: previewError } = await supabase.storage
-          .from('previews')
-          .upload(previewFileName, previewFile);
+        
+        const { error: previewError } = await uploadWithProgress(
+          'previews',
+          previewFileName,
+          previewFile,
+          updateOverallProgress
+        );
         
         if (previewError) {
           console.error('Preview upload error:', previewError);
@@ -219,7 +295,11 @@ export default function AdminMultitracks() {
           .from('previews')
           .getPublicUrl(previewFileName);
         previewUrl = previewPublicUrl;
+        completedFiles++;
       }
+
+      setCurrentUploadStep('Salvando dados...');
+      setUploadProgress(100);
 
       if (editingMultitrack) {
         // Update existing multitrack
@@ -265,6 +345,8 @@ export default function AdminMultitracks() {
       });
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
+      setCurrentUploadStep('');
     }
   };
 
@@ -456,8 +538,24 @@ export default function AdminMultitracks() {
                     : 'Arquivo MP3 curto (30-60 seg) para os clientes ouvirem'}
                 </p>
               </div>
+              {/* Upload Progress */}
+              {isUploading && (
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{currentUploadStep}</span>
+                    <span className="font-medium">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isUploading}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isUploading}>
