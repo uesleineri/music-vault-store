@@ -87,26 +87,32 @@ const handler = async (req: Request): Promise<Response> => {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1); // Due tomorrow
 
+    const paymentBody = {
+      customer: customer.id,
+      billingType: "UNDEFINED", // Allows PIX, credit card, boleto
+      value: amount,
+      dueDate: dueDate.toISOString().split("T")[0],
+      description: `Multitrack: ${multitrack_name}`,
+      externalReference: sale.id,
+    };
+
+    console.log("Creating payment with body:", JSON.stringify(paymentBody));
+
     const paymentResponse = await fetch("https://api.asaas.com/v3/payments", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "access_token": asaasApiKey,
       },
-      body: JSON.stringify({
-        customer: customer.id,
-        billingType: "UNDEFINED", // Allows PIX, credit card, boleto
-        value: amount,
-        dueDate: dueDate.toISOString().split("T")[0],
-        description: `Multitrack: ${multitrack_name}`,
-        externalReference: sale.id,
-      }),
+      body: JSON.stringify(paymentBody),
     });
 
     const payment = await paymentResponse.json();
+    console.log("Asaas payment response:", JSON.stringify(payment));
 
     if (!payment?.id) {
-      throw new Error("Failed to create payment");
+      console.error("Payment creation failed:", payment);
+      throw new Error(`Failed to create payment: ${JSON.stringify(payment)}`);
     }
 
     // Update sale with payment ID
