@@ -92,20 +92,20 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to create/find customer");
     }
 
-    // Create Asaas payment
+    // Create Asaas PIX payment
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1); // Due tomorrow
 
     const paymentBody = {
       customer: customer.id,
-      billingType: "UNDEFINED", // Allows PIX, credit card, boleto
+      billingType: "PIX", // PIX only
       value: amount,
       dueDate: dueDate.toISOString().split("T")[0],
       description: `Multitrack: ${multitrack_name}`,
       externalReference: sale.id,
     };
 
-    console.log("Creating payment with body:", JSON.stringify(paymentBody));
+    console.log("Creating PIX payment with body:", JSON.stringify(paymentBody));
 
     const paymentResponse = await fetch("https://api.asaas.com/v3/payments", {
       method: "POST",
@@ -130,21 +130,25 @@ const handler = async (req: Request): Promise<Response> => {
       .update({ payment_id: payment.id })
       .eq("id", sale.id);
 
-    // Get payment link
-    const paymentLinkResponse = await fetch(
-      `https://api.asaas.com/v3/payments/${payment.id}/identificationField`,
+    // Get PIX QR Code
+    const pixResponse = await fetch(
+      `https://api.asaas.com/v3/payments/${payment.id}/pixQrCode`,
       {
         headers: { "access_token": asaasApiKey },
       }
     );
+    
+    const pixData = await pixResponse.json();
+    console.log("PIX QR Code response:", JSON.stringify(pixData));
 
     return new Response(
       JSON.stringify({
         success: true,
         sale_id: sale.id,
         payment_id: payment.id,
-        payment_url: payment.invoiceUrl,
-        pix_code: payment.pixQrCodeUrl,
+        pix_qr_code_image: pixData.encodedImage, // Base64 image
+        pix_copy_paste: pixData.payload, // Copy-paste code
+        pix_expiration: pixData.expirationDate,
       }),
       {
         status: 200,
