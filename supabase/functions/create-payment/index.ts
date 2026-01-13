@@ -74,18 +74,27 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     let customer;
-    if (customerResponse.status === 409) {
-      // Customer already exists, fetch by email
+    const customerResponseData = await customerResponse.json();
+    console.log("Customer response status:", customerResponse.status);
+    console.log("Customer response data:", JSON.stringify(customerResponseData));
+
+    if (customerResponse.status === 409 || customerResponseData.errors?.some((e: any) => e.code === "invalid_cpfCnpj_alreadyInUse")) {
+      // Customer already exists, fetch by CPF
+      console.log("Customer exists, searching by CPF...");
       const searchResponse = await fetch(
-        `https://api.asaas.com/v3/customers?email=${encodeURIComponent(buyer_email)}`,
+        `https://api.asaas.com/v3/customers?cpfCnpj=${buyer_cpf}`,
         {
           headers: { "access_token": asaasApiKey },
         }
       );
       const searchData = await searchResponse.json();
-      customer = searchData.data[0];
+      console.log("Search response:", JSON.stringify(searchData));
+      customer = searchData.data?.[0];
+    } else if (customerResponseData.id) {
+      customer = customerResponseData;
     } else {
-      customer = await customerResponse.json();
+      console.error("Customer creation failed:", customerResponseData);
+      throw new Error(`Failed to create customer: ${JSON.stringify(customerResponseData)}`);
     }
 
     if (!customer?.id) {
