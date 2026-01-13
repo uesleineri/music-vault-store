@@ -8,8 +8,10 @@ const corsHeaders = {
 
 interface CreatePaymentRequest {
   multitrack_id: string;
+  buyer_name: string;
   buyer_email: string;
   buyer_cpf: string;
+  buyer_phone: string;
   amount: number;
   multitrack_name: string;
 }
@@ -29,7 +31,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { multitrack_id, buyer_email, buyer_cpf, amount, multitrack_name }: CreatePaymentRequest = await req.json();
+    const { multitrack_id, buyer_name, buyer_email, buyer_cpf, buyer_phone, amount, multitrack_name }: CreatePaymentRequest = await req.json();
 
     // Generate unique download token
     const downloadToken = crypto.randomUUID();
@@ -55,8 +57,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Create Asaas customer (or find existing)
     const customerBody = {
       email: buyer_email,
-      name: buyer_email.split("@")[0],
+      name: buyer_name,
       cpfCnpj: buyer_cpf,
+      mobilePhone: buyer_phone,
     };
     
     console.log("Creating customer with body:", JSON.stringify(customerBody));

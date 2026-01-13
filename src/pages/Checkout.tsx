@@ -13,8 +13,10 @@ export default function Checkout() {
   const { id } = useParams<{ id: string }>();
   const { data: multitrack, isLoading } = useMultitrack(id || '');
   const { toast } = useToast();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [cpf, setCpf] = useState('');
+  const [phone, setPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
@@ -28,10 +30,28 @@ export default function Checkout() {
     return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9)}`;
   };
 
+  // Format phone as user types
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '').slice(0, 11);
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const cpfNumbers = cpf.replace(/\D/g, '');
+    const phoneNumbers = phone.replace(/\D/g, '');
+    
+    if (!name.trim()) {
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Por favor, informe seu nome.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     if (!email || !multitrack) {
       toast({
@@ -51,14 +71,25 @@ export default function Checkout() {
       return;
     }
 
+    if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
+      toast({
+        title: 'Celular inválido',
+        description: 'Por favor, informe um número de celular válido.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
       const { data, error } = await supabase.functions.invoke('create-payment', {
         body: {
           multitrack_id: multitrack.id,
+          buyer_name: name.trim(),
           buyer_email: email,
           buyer_cpf: cpfNumbers,
+          buyer_phone: phoneNumbers,
           amount: multitrack.price,
           multitrack_name: `${multitrack.artist_name} - ${multitrack.song_name}`,
         },
@@ -199,6 +230,18 @@ export default function Checkout() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
+                <Label htmlFor="name">Nome completo</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Seu nome"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="email">Email para receber o download</Label>
                 <Input
                   id="email"
@@ -210,19 +253,30 @@ export default function Checkout() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="cpf">CPF</Label>
-                <Input
-                  id="cpf"
-                  type="text"
-                  placeholder="000.000.000-00"
-                  value={cpf}
-                  onChange={(e) => setCpf(formatCpf(e.target.value))}
-                  required
-                />
-                <p className="text-sm text-muted-foreground">
-                  Necessário para processar o pagamento.
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cpf">CPF</Label>
+                  <Input
+                    id="cpf"
+                    type="text"
+                    placeholder="000.000.000-00"
+                    value={cpf}
+                    onChange={(e) => setCpf(formatCpf(e.target.value))}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Celular / WhatsApp</Label>
+                  <Input
+                    id="phone"
+                    type="text"
+                    placeholder="(00) 00000-0000"
+                    value={phone}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    required
+                  />
+                </div>
               </div>
 
               <p className="text-sm text-muted-foreground">
