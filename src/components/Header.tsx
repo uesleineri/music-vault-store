@@ -14,9 +14,6 @@ export function Header() {
           <Link to="/catalog">
             <Button variant="ghost">Catálogo</Button>
           </Link>
-          <Link to="/admin">
-            <Button variant="outline" size="sm">Admin</Button>
-          </Link>
         </nav>
       </div>
     </header>
