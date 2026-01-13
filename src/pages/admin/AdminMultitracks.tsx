@@ -65,27 +65,36 @@ export default function AdminMultitracks() {
     setIsUploading(true);
 
     try {
+      console.log('Starting upload for:', audioFile.name, 'Type:', audioFile.type, 'Size:', audioFile.size);
+      
       // Upload audio file
       const audioFileName = `${Date.now()}-${audioFile.name}`;
-      const { error: audioError } = await supabase.storage
+      const { data: uploadData, error: audioError } = await supabase.storage
         .from('multitracks')
         .upload(audioFileName, audioFile);
       
-      if (audioError) throw audioError;
+      console.log('Upload result:', { uploadData, audioError });
+      
+      if (audioError) {
+        console.error('Audio upload error:', audioError);
+        throw new Error(`Erro no upload: ${audioError.message}`);
+      }
 
-      // Get file URL
-      const { data: { publicUrl: fileUrl } } = supabase.storage
-        .from('multitracks')
-        .getPublicUrl(audioFileName);
+      // Get file URL - for private bucket, we store the path
+      const fileUrl = audioFileName;
 
       let coverUrl = null;
       if (coverFile) {
+        console.log('Uploading cover:', coverFile.name);
         const coverFileName = `${Date.now()}-${coverFile.name}`;
         const { error: coverError } = await supabase.storage
           .from('covers')
           .upload(coverFileName, coverFile);
         
-        if (coverError) throw coverError;
+        if (coverError) {
+          console.error('Cover upload error:', coverError);
+          throw new Error(`Erro no upload da capa: ${coverError.message}`);
+        }
 
         const { data: { publicUrl } } = supabase.storage
           .from('covers')
@@ -93,6 +102,8 @@ export default function AdminMultitracks() {
         coverUrl = publicUrl;
       }
 
+      console.log('Creating multitrack record...');
+      
       // Create multitrack record
       const newMultitrack = await createMultitrack.mutateAsync({
         artist_name: formData.artist_name,
@@ -103,14 +114,18 @@ export default function AdminMultitracks() {
         preview_url: null,
       });
 
+      console.log('Multitrack created:', newMultitrack);
+
       // Generate preview automatically in background
       if (audioFile.type.startsWith('audio/')) {
+        console.log('Triggering preview generation...');
         supabase.functions.invoke('generate-preview', {
           body: {
             multitrack_id: newMultitrack.id,
             file_path: audioFileName,
           },
-        }).then(() => {
+        }).then((result) => {
+          console.log('Preview generation result:', result);
           toast({
             title: 'Preview gerado!',
             description: 'O preview de áudio foi criado automaticamente.',
@@ -130,6 +145,7 @@ export default function AdminMultitracks() {
       setCoverFile(null);
       setAudioFile(null);
     } catch (error: any) {
+      console.error('Full error:', error);
       toast({
         title: 'Erro ao adicionar',
         description: error.message || 'Tente novamente.',
