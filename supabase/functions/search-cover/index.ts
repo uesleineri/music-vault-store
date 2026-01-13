@@ -36,9 +36,18 @@ function similarity(str1: string, str2: string): number {
   return matches / Math.max(words1.length, words2.length);
 }
 
-// Find best matching track from results
-function findBestMatch(tracks: any[], songName: string, artistName: string): any | null {
-  if (!tracks || tracks.length === 0) return null;
+interface CoverOption {
+  cover_url: string;
+  title: string;
+  artist: string;
+  album: string;
+  source: string;
+  score: number;
+}
+
+// Find and rank matching tracks from results
+function findMatches(tracks: any[], songName: string, artistName: string, source: string): CoverOption[] {
+  if (!tracks || tracks.length === 0) return [];
   
   const normalizedSong = normalize(songName);
   const normalizedArtist = normalize(artistName);
@@ -47,13 +56,24 @@ function findBestMatch(tracks: any[], songName: string, artistName: string): any
   const liveKeywords = ['ao vivo', 'live', 'acustico', 'acoustic', 'unplugged'];
   const hasLiveKeyword = liveKeywords.some(kw => normalizedSong.includes(normalize(kw)));
   
-  let bestTrack = null;
-  let bestScore = -1;
+  const results: CoverOption[] = [];
+  const seenCovers = new Set<string>();
   
   for (const track of tracks) {
     const trackTitle = track.title || track.trackName || '';
     const trackArtist = track.artist?.name || track.artistName || '';
     const albumTitle = track.album?.title || track.collectionName || '';
+    
+    let coverUrl = '';
+    if (source === 'deezer') {
+      coverUrl = track.album?.cover_xl || track.album?.cover_big || track.album?.cover_medium || '';
+    } else {
+      coverUrl = track.artworkUrl100?.replace('100x100', '600x600') || '';
+    }
+    
+    // Skip if no cover or already seen this cover
+    if (!coverUrl || seenCovers.has(coverUrl)) continue;
+    seenCovers.add(coverUrl);
     
     // Calculate song title similarity
     const titleScore = similarity(trackTitle, songName);
@@ -74,16 +94,18 @@ function findBestMatch(tracks: any[], songName: string, artistName: string): any
     // Combined score with weights
     const totalScore = (titleScore * 0.5) + (artistScore * 0.3) + liveBonus + (track.rank ? track.rank / 1000000 : 0);
     
-    console.log(`Track: "${trackTitle}" by "${trackArtist}" (Album: "${albumTitle}") - Score: ${totalScore.toFixed(3)}`);
-    
-    if (totalScore > bestScore) {
-      bestScore = totalScore;
-      bestTrack = track;
-    }
+    results.push({
+      cover_url: coverUrl,
+      title: trackTitle,
+      artist: trackArtist,
+      album: albumTitle,
+      source,
+      score: totalScore,
+    });
   }
   
-  console.log(`Best match: "${bestTrack?.title || bestTrack?.trackName}" with score ${bestScore.toFixed(3)}`);
-  return bestTrack;
+  // Sort by score descending
+  return results.sort((a, b) => b.score - a.score);
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -101,71 +123,55 @@ const handler = async (req: Request): Promise<Response> => {
     const query = `${artist} ${song}`;
     console.log("Searching cover for:", query);
 
-    // Try Deezer API first with more results for better matching
+    let allResults: CoverOption[] = [];
+
+    // Try Deezer API
     const deezerResponse = await fetch(
-      `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=15`
+      `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=20`
     );
     
     const deezerData = await deezerResponse.json();
     console.log(`Deezer returned ${deezerData.data?.length || 0} results`);
 
     if (deezerData.data && deezerData.data.length > 0) {
-      const bestTrack = findBestMatch(deezerData.data, song, artist);
-      
-      if (bestTrack) {
-        const coverUrl = bestTrack.album?.cover_xl || bestTrack.album?.cover_big || bestTrack.album?.cover_medium;
-        
-        if (coverUrl) {
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              cover_url: coverUrl,
-              source: "deezer",
-              artist: bestTrack.artist?.name,
-              title: bestTrack.title,
-              album: bestTrack.album?.title
-            }),
-            { 
-              status: 200, 
-              headers: { "Content-Type": "application/json", ...corsHeaders } 
-            }
-          );
-        }
-      }
+      const deezerMatches = findMatches(deezerData.data, song, artist, 'deezer');
+      allResults = [...allResults, ...deezerMatches];
     }
 
-    // If Deezer fails, try iTunes API
+    // Also try iTunes API for more options
     const itunesResponse = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=15`
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`
     );
     
     const itunesData = await itunesResponse.json();
     console.log(`iTunes returned ${itunesData.results?.length || 0} results`);
 
     if (itunesData.results && itunesData.results.length > 0) {
-      const bestTrack = findBestMatch(itunesData.results, song, artist);
-      
-      if (bestTrack) {
-        // Get high-res artwork (replace 100x100 with 600x600)
-        const coverUrl = bestTrack.artworkUrl100?.replace('100x100', '600x600');
-        
-        if (coverUrl) {
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              cover_url: coverUrl,
-              source: "itunes",
-              artist: bestTrack.artistName,
-              title: bestTrack.trackName,
-              album: bestTrack.collectionName
-            }),
-            { 
-              status: 200, 
-              headers: { "Content-Type": "application/json", ...corsHeaders } 
-            }
-          );
+      const itunesMatches = findMatches(itunesData.results, song, artist, 'itunes');
+      allResults = [...allResults, ...itunesMatches];
+    }
+
+    // Sort all results by score and return top 8 unique covers
+    allResults.sort((a, b) => b.score - a.score);
+    const topResults = allResults.slice(0, 8);
+
+    if (topResults.length > 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          covers: topResults,
+          // Also include best match for backwards compatibility
+          cover_url: topResults[0].cover_url,
+          source: topResults[0].source,
+          artist: topResults[0].artist,
+          title: topResults[0].title,
+          album: topResults[0].album
+        }),
+        { 
+          status: 200, 
+          headers: { "Content-Type": "application/json", ...corsHeaders } 
         }
-      }
+      );
     }
 
     return new Response(
