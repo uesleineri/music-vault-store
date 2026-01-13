@@ -14,17 +14,38 @@ export default function Checkout() {
   const { data: multitrack, isLoading } = useMultitrack(id || '');
   const { toast } = useToast();
   const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
 
+  // Format CPF as user types
+  const formatCpf = (value: string) => {
+    const numbers = value.replace(/\D/g, '').slice(0, 11);
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 6) return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    if (numbers.length <= 9) return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9)}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const cpfNumbers = cpf.replace(/\D/g, '');
     
     if (!email || !multitrack) {
       toast({
         title: 'Email obrigatório',
         description: 'Por favor, informe seu email para receber o link de download.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (cpfNumbers.length !== 11) {
+      toast({
+        title: 'CPF inválido',
+        description: 'Por favor, informe um CPF válido com 11 dígitos.',
         variant: 'destructive',
       });
       return;
@@ -37,6 +58,7 @@ export default function Checkout() {
         body: {
           multitrack_id: multitrack.id,
           buyer_email: email,
+          buyer_cpf: cpfNumbers,
           amount: multitrack.price,
           multitrack_name: `${multitrack.artist_name} - ${multitrack.song_name}`,
         },
@@ -186,10 +208,26 @@ export default function Checkout() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cpf">CPF</Label>
+                <Input
+                  id="cpf"
+                  type="text"
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(formatCpf(e.target.value))}
+                  required
+                />
                 <p className="text-sm text-muted-foreground">
-                  O link de download será enviado para este email após a confirmação do pagamento.
+                  Necessário para processar o pagamento.
                 </p>
               </div>
+
+              <p className="text-sm text-muted-foreground">
+                O link de download será enviado para este email após a confirmação do pagamento.
+              </p>
 
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between text-lg font-semibold mb-4">
