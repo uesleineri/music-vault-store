@@ -53,6 +53,13 @@ export default function AdminMultitracks() {
   });
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverOptions, setCoverOptions] = useState<Array<{
+    cover_url: string;
+    title: string;
+    artist: string;
+    album: string;
+    source: string;
+  }>>([]);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
 
@@ -60,6 +67,7 @@ export default function AdminMultitracks() {
     setFormData({ artist_name: '', song_name: '', price: '' });
     setCoverFile(null);
     setCoverPreviewUrl(null);
+    setCoverOptions([]);
     setAudioFile(null);
     setPreviewFile(null);
     setEditingMultitrack(null);
@@ -87,6 +95,7 @@ export default function AdminMultitracks() {
     }
 
     setIsSearchingCover(true);
+    setCoverOptions([]);
     try {
       const { data, error } = await supabase.functions.invoke('search-cover', {
         body: {
@@ -97,14 +106,14 @@ export default function AdminMultitracks() {
 
       if (error) throw error;
 
-      if (data.success && data.cover_url) {
-        setCoverPreviewUrl(data.cover_url);
+      if (data.success && data.covers && data.covers.length > 0) {
+        setCoverOptions(data.covers);
         toast({
-          title: 'Capa encontrada!',
-          description: `${data.title} - ${data.artist} (${data.source})`,
+          title: `${data.covers.length} capas encontradas!`,
+          description: 'Selecione a capa desejada abaixo.',
         });
       } else {
-        throw new Error('Capa não encontrada');
+        throw new Error('Nenhuma capa encontrada');
       }
     } catch (error: any) {
       console.error('Cover search error:', error);
@@ -116,6 +125,14 @@ export default function AdminMultitracks() {
     } finally {
       setIsSearchingCover(false);
     }
+  };
+
+  const selectCover = (coverUrl: string) => {
+    setCoverPreviewUrl(coverUrl);
+    setCoverOptions([]);
+    toast({
+      title: 'Capa selecionada!',
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -343,6 +360,35 @@ export default function AdminMultitracks() {
                     Buscar capa
                   </Button>
                 </div>
+                
+                {/* Cover Options Grid */}
+                {coverOptions.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Selecione uma capa:</p>
+                    <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto p-1">
+                      {coverOptions.map((option, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => selectCover(option.cover_url)}
+                          className="group relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary"
+                          title={`${option.title} - ${option.album}`}
+                        >
+                          <img
+                            src={option.cover_url}
+                            alt={option.album}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-1">
+                            <p className="text-white text-[10px] leading-tight line-clamp-2 font-medium">{option.title}</p>
+                            <p className="text-white/70 text-[9px] line-clamp-1">{option.album}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {coverPreviewUrl && (
                   <div className="flex items-center gap-3 p-2 border rounded-lg bg-muted/50">
                     <img
@@ -373,6 +419,7 @@ export default function AdminMultitracks() {
                     setCoverFile(file);
                     if (file) {
                       setCoverPreviewUrl(URL.createObjectURL(file));
+                      setCoverOptions([]);
                     }
                   }}
                 />
