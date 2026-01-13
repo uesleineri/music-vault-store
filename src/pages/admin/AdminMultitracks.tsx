@@ -64,11 +64,20 @@ export default function AdminMultitracks() {
 
     setIsUploading(true);
 
+    // Sanitize file name - remove special characters and spaces
+    const sanitizeFileName = (name: string) => {
+      return name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace special chars with underscore
+        .replace(/_+/g, '_'); // Remove multiple underscores
+    };
+
     try {
       console.log('Starting upload for:', audioFile.name, 'Type:', audioFile.type, 'Size:', audioFile.size);
       
       // Upload audio file
-      const audioFileName = `${Date.now()}-${audioFile.name}`;
+      const audioFileName = `${Date.now()}-${sanitizeFileName(audioFile.name)}`;
       const { data: uploadData, error: audioError } = await supabase.storage
         .from('multitracks')
         .upload(audioFileName, audioFile);
@@ -86,7 +95,7 @@ export default function AdminMultitracks() {
       let coverUrl = null;
       if (coverFile) {
         console.log('Uploading cover:', coverFile.name);
-        const coverFileName = `${Date.now()}-${coverFile.name}`;
+        const coverFileName = `${Date.now()}-${sanitizeFileName(coverFile.name)}`;
         const { error: coverError } = await supabase.storage
           .from('covers')
           .upload(coverFileName, coverFile);
