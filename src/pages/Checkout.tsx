@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Music, CheckCircle, Loader2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Music, Loader2, Copy, Check, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,8 +18,13 @@ export default function Checkout() {
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<{
+    qrCodeImage: string;
+    copyPaste: string;
+    expiration: string;
+  } | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Format CPF as user types
   const formatCpf = (value: string) => {
@@ -97,12 +102,16 @@ export default function Checkout() {
 
       if (error) throw error;
 
-      if (data.payment_url) {
-        setPaymentUrl(data.payment_url);
+      if (data.pix_qr_code_image) {
+        setPixData({
+          qrCodeImage: data.pix_qr_code_image,
+          copyPaste: data.pix_copy_paste,
+          expiration: data.pix_expiration,
+        });
         setSaleId(data.sale_id);
         toast({
-          title: 'Pagamento criado!',
-          description: 'Clique no botão para pagar.',
+          title: 'PIX gerado!',
+          description: 'Escaneie o QR Code ou copie o código para pagar.',
         });
       }
     } catch (error: any) {
@@ -140,17 +149,31 @@ export default function Checkout() {
     );
   }
 
-  if (paymentUrl) {
+  if (pixData) {
+    const handleCopy = async () => {
+      await navigator.clipboard.writeText(pixData.copyPaste);
+      setCopied(true);
+      toast({
+        title: 'Código copiado!',
+        description: 'Cole no app do seu banco para pagar.',
+      });
+      setTimeout(() => setCopied(false), 3000);
+    };
+
     return (
-      <div className="container py-16 max-w-lg text-center animate-fade-in">
-        <div className="h-20 w-20 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-6">
-          <ExternalLink className="h-10 w-10 text-primary" />
+      <div className="container py-8 max-w-lg animate-fade-in">
+        <div className="text-center mb-8">
+          <div className="h-20 w-20 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-6">
+            <QrCode className="h-10 w-10 text-primary" />
+          </div>
+          <h1 className="text-3xl font-bold mb-2">Pague com PIX</h1>
+          <p className="text-muted-foreground">
+            Escaneie o QR Code ou copie o código para pagar
+          </p>
         </div>
-        <h1 className="text-3xl font-bold mb-4">Quase lá!</h1>
-        <p className="text-muted-foreground mb-8">
-          Clique no botão abaixo para finalizar o pagamento. Após a confirmação, você receberá o link de download no email <strong>{email}</strong>.
-        </p>
-        <Card className="text-left mb-8">
+
+        {/* Product Summary */}
+        <Card className="mb-6">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="h-16 w-16 rounded bg-muted flex items-center justify-center flex-shrink-0">
               {multitrack.cover_url ? (
@@ -167,20 +190,60 @@ export default function Checkout() {
               <h3 className="font-semibold truncate">{multitrack.song_name}</h3>
               <p className="text-sm text-muted-foreground truncate">{multitrack.artist_name}</p>
             </div>
-            <div className="text-lg font-bold">
+            <div className="text-lg font-bold text-primary">
               R$ {multitrack.price.toFixed(2).replace('.', ',')}
             </div>
           </CardContent>
         </Card>
-        <a href={paymentUrl} target="_blank" rel="noopener noreferrer">
-          <Button size="lg" className="w-full gap-2 mb-4">
-            <ExternalLink className="h-5 w-5" />
-            Pagar agora
-          </Button>
-        </a>
-        <Link to="/catalog">
-          <Button variant="outline" className="w-full">Voltar ao catálogo</Button>
-        </Link>
+
+        {/* QR Code */}
+        <Card className="mb-6">
+          <CardContent className="p-6 flex flex-col items-center">
+            <div className="bg-white p-4 rounded-lg mb-4">
+              <img
+                src={`data:image/png;base64,${pixData.qrCodeImage}`}
+                alt="QR Code PIX"
+                className="w-48 h-48"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground text-center mb-4">
+              Abra o app do seu banco e escaneie o QR Code acima
+            </p>
+            
+            <div className="w-full">
+              <p className="text-sm font-medium mb-2 text-center">Ou copie o código PIX:</p>
+              <div className="relative">
+                <Input
+                  value={pixData.copyPaste}
+                  readOnly
+                  className="pr-12 text-xs font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2"
+                  onClick={handleCopy}
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Após o pagamento, você receberá o link de download no email <strong>{email}</strong>
+          </p>
+          <Link to="/catalog">
+            <Button variant="outline" className="w-full">Voltar ao catálogo</Button>
+          </Link>
+        </div>
       </div>
     );
   }
