@@ -26,9 +26,16 @@ export function distributeFee(rows: any[], grossValue: number, netValue: number)
   }
   let allocated = 0;
 
-  return rows.map((row, index) => {
+  // Sort by id first - `rows` comes straight from a Supabase query with no
+  // ORDER BY, so its order isn't guaranteed stable across calls. Since the
+  // last row absorbs the rounding remainder, an unstable order would assign
+  // a different row a different fee/net split on every re-run (e.g. a retried
+  // webhook) even though the group total stays the same.
+  const sortedRows = [...rows].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+  return sortedRows.map((row, index) => {
     let fee: number;
-    if (index === rows.length - 1) {
+    if (index === sortedRows.length - 1) {
       fee = Math.round((feeTotal - allocated) * 100) / 100;
     } else {
       fee = Math.round((feeTotal * (Number(row.amount) / totalAmount)) * 100) / 100;

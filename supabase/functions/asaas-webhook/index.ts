@@ -85,15 +85,14 @@ const handler = async (req: Request): Promise<Response> => {
       // Google sends its own "shared with you" notification email automatically for each.
       try {
         const accessToken = await googleDrive.getAccessToken();
-        let sharedCount = 0;
-        for (const sale of sales) {
-          const items = await getSaleItems(supabase, sale);
-          for (const item of items) {
-            await googleDrive.shareFileWithUser(item.file_url, buyerEmail, accessToken, sale.download_expires_at);
-            sharedCount++;
-          }
-        }
-        console.log(`Shared ${sharedCount} Drive file(s) with buyer:`, buyerEmail);
+        const itemsBySale = await Promise.all(sales.map((sale: any) => getSaleItems(supabase, sale)));
+        const shares = sales.flatMap((sale: any, index: number) =>
+          itemsBySale[index].map((item) => ({ item, expiresAt: sale.download_expires_at }))
+        );
+        await Promise.all(
+          shares.map(({ item, expiresAt }) => googleDrive.shareFileWithUser(item.file_url, buyerEmail, accessToken, expiresAt))
+        );
+        console.log(`Shared ${shares.length} Drive file(s) with buyer:`, buyerEmail);
       } catch (shareError) {
         // Don't fail the webhook (Asaas would retry) if sharing hiccups -
         // get-download retries the share as a fallback when the buyer opens the link.

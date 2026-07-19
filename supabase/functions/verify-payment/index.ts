@@ -138,12 +138,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     try {
       const accessToken = await googleDrive.getAccessToken();
-      for (const updatedSale of updatedSales) {
-        const items = await getSaleItems(supabase, updatedSale);
-        for (const item of items) {
-          await googleDrive.shareFileWithUser(item.file_url, updatedSale.buyer_email, accessToken, updatedSale.download_expires_at);
-        }
-      }
+      const itemsBySale = await Promise.all(updatedSales.map((s: any) => getSaleItems(supabase, s)));
+      const shares = updatedSales.flatMap((s: any, index: number) =>
+        itemsBySale[index].map((item) => ({ item, buyerEmail: s.buyer_email, expiresAt: s.download_expires_at }))
+      );
+      await Promise.all(
+        shares.map(({ item, buyerEmail, expiresAt }) => googleDrive.shareFileWithUser(item.file_url, buyerEmail, accessToken, expiresAt))
+      );
     } catch (shareError) {
       console.error("Failed to share Drive file(s) after manual verification:", shareError);
     }

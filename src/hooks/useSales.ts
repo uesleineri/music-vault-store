@@ -2,6 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Sale } from '@/types/multitrack';
 
+// A cart checkout inserts one `sales` row per item, all sharing one
+// checkout_group_id - "how many orders" is the count of distinct groups,
+// not the row count (revenue/fee sums stay correct either way since those
+// add up per-row regardless of grouping).
+export function countOrders(rows: { checkout_group_id: string }[]): number {
+  return new Set(rows.map((row) => row.checkout_group_id)).size;
+}
+
 export function useSales() {
   return useQuery({
     queryKey: ['sales'],
@@ -27,14 +35,14 @@ export function useSalesStats() {
     queryFn: async () => {
       const { data: sales, error } = await supabase
         .from('sales')
-        .select('amount, payment_status');
+        .select('amount, payment_status, checkout_group_id');
 
       if (error) throw error;
 
       const paid = sales.filter((s) => s.payment_status === 'paid');
       const totalRevenue = paid.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      const totalSales = paid.length;
-      const totalAttempts = sales.length;
+      const totalSales = countOrders(paid);
+      const totalAttempts = countOrders(sales);
 
       return {
         totalRevenue,

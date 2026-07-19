@@ -69,6 +69,16 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    // Without this, the same product sent twice in `items` would create two
+    // sales rows and double the charge - the cart UI already prevents this,
+    // but a tampered request could still send it.
+    const itemKeys = items.map((item) => item.multitrack_id ?? item.bundle_id);
+    if (new Set(itemKeys).size !== itemKeys.length) {
+      return new Response(
+        JSON.stringify({ error: "O carrinho tem um item duplicado" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Never trust prices from the client - look up the real, current price of
     // every item so a tampered request can't buy anything for less.
@@ -89,6 +99,23 @@ const handler = async (req: Request): Promise<Response> => {
     const multitrackById = new Map((multitracks ?? []).map((m: any) => [m.id, m]));
     const bundleById = new Map((bundles ?? []).map((b: any) => [b.id, b]));
 
+    // A bundle can still look purchasable itself while one of the songs
+    // inside it was individually deactivated (e.g. a takedown) - check every
+    // component, not just the bundle row.
+    let bundleIdsWithInactiveSong = new Set<string>();
+    if (bundleIds.length > 0) {
+      const { data: bundleItems, error: bundleItemsError } = await supabase
+        .from("bundle_items")
+        .select("bundle_id, multitrack:multitracks(is_active)")
+        .in("bundle_id", bundleIds);
+      if (bundleItemsError) throw bundleItemsError;
+      bundleIdsWithInactiveSong = new Set(
+        (bundleItems ?? [])
+          .filter((bi: any) => !bi.multitrack?.is_active)
+          .map((bi: any) => bi.bundle_id)
+      );
+    }
+
     const resolvedItems: ResolvedItem[] = [];
     for (const item of items) {
       if (item.multitrack_id) {
@@ -107,7 +134,7 @@ const handler = async (req: Request): Promise<Response> => {
         });
       } else {
         const bundle = bundleById.get(item.bundle_id);
-        if (!bundle || !bundle.is_active) {
+        if (!bundle || !bundle.is_active || bundleIdsWithInactiveSong.has(item.bundle_id)) {
           return new Response(
             JSON.stringify({ error: "Um dos kits do carrinho não está mais disponível" }),
             { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -160,6 +187,11 @@ const handler = async (req: Request): Promise<Response> => {
     // item absorbs the rounding remainder so the split sums exactly.
     let allocatedDiscount = 0;
     const itemsWithAmount = resolvedItems.map((item, index) => {
+      // totalPrice is 0 only if every item is itself priced at 0 - nothing to
+      // split (and item.price / totalPrice would be a division by zero).
+      if (totalPrice === 0) {
+        return { ...item, discount: 0, amount: 0 };
+      }
       let discount: number;
       if (index === resolvedItems.length - 1) {
         discount = Math.round((totalDiscount - allocatedDiscount) * 100) / 100;

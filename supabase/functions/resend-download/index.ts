@@ -72,15 +72,12 @@ const handler = async (req: Request): Promise<Response> => {
     const paidGroupSales = groupSales.filter((s: any) => s.payment_status === "paid");
 
     const accessToken = await googleDrive.getAccessToken();
-    let resentCount = 0;
-    for (const groupSale of paidGroupSales) {
-      const items = await getSaleItems(supabase, groupSale);
-      for (const item of items) {
-        await googleDrive.resendShareNotification(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
-        resentCount++;
-      }
-    }
-    if (resentCount === 0) {
+    const itemsBySale = await Promise.all(paidGroupSales.map((s: any) => getSaleItems(supabase, s)));
+    const items = itemsBySale.flat();
+    await Promise.all(
+      items.map((item) => googleDrive.resendShareNotification(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at))
+    );
+    if (items.length === 0) {
       return new Response(JSON.stringify({ error: "Arquivo não encontrado" }), {
         status: 404,
         headers: { "Content-Type": "application/json", ...corsHeaders },

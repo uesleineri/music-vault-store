@@ -124,7 +124,10 @@ export default function AdminBundles() {
 
     setIsSaving(true);
     try {
-      let coverUrl = editingBundle?.cover_url ?? null;
+      // coverPreviewUrl already reflects the admin's intent (existing cover,
+      // a freshly chosen file's local preview, or null after clicking
+      // "Remover") - use it as the base so clearing the cover actually saves.
+      let coverUrl: string | null = coverPreviewUrl;
 
       if (coverFile) {
         const coverFileName = `bundle-${Date.now()}-${sanitizeFileName(coverFile.name)}`;

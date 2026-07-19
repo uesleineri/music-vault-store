@@ -168,8 +168,8 @@ export default function AdminFinancial() {
       const net = fee != null ? Number(sale.amount) - fee : null;
       return [
         format(new Date(sale.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
-        sale.multitrack?.song_name || 'N/A',
-        sale.multitrack?.artist_name || 'N/A',
+        sale.multitrack?.song_name || (sale.bundle ? `[Kit] ${sale.bundle.name}` : 'N/A'),
+        sale.multitrack?.artist_name || '-',
         sale.buyer_email,
         Number(sale.amount).toFixed(2).replace('.', ','),
         fee != null ? fee.toFixed(2).replace('.', ',') : 'N/D',

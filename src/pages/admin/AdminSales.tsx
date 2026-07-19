@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/select';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
-import { useSales } from '@/hooks/useSales';
+import { useSales, countOrders } from '@/hooks/useSales';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -163,7 +163,7 @@ export default function AdminSales() {
         isWithinInterval(new Date(sale.created_at), { start: dayStart, end: dayEnd })
       );
 
-      const vendas = daySales.length;
+      const vendas = countOrders(daySales);
       const receita = daySales
         .filter((s) => s.payment_status === 'paid')
         .reduce((sum, s) => sum + Number(s.amount), 0);
@@ -177,19 +177,21 @@ export default function AdminSales() {
     });
   }, [filteredSales, startDate, endDate]);
 
-  // Group sales by day for table
+  // Group sales by day for table. A cart order is several rows sharing one
+  // checkout_group_id - "count" tracks distinct orders, not rows, so a
+  // 3-item cart shows as 1 sale, not 3.
   const salesByDay = useMemo(() => {
-    const grouped: Record<string, { date: string; count: number; total: number; paid: number }> = {};
+    const grouped: Record<string, { date: string; groupIds: Set<string>; total: number; paid: number }> = {};
 
     filteredSales.forEach((sale) => {
       const dateKey = format(new Date(sale.created_at), 'yyyy-MM-dd');
       const dateLabel = format(new Date(sale.created_at), "dd/MM/yyyy (EEEE)", { locale: ptBR });
 
       if (!grouped[dateKey]) {
-        grouped[dateKey] = { date: dateLabel, count: 0, total: 0, paid: 0 };
+        grouped[dateKey] = { date: dateLabel, groupIds: new Set(), total: 0, paid: 0 };
       }
 
-      grouped[dateKey].count++;
+      grouped[dateKey].groupIds.add(sale.checkout_group_id);
       grouped[dateKey].total += Number(sale.amount);
       if (sale.payment_status === 'paid') {
         grouped[dateKey].paid += Number(sale.amount);
@@ -198,19 +200,20 @@ export default function AdminSales() {
 
     return Object.entries(grouped)
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([key, value]) => ({ key, ...value }));
+      .map(([key, value]) => ({ key, date: value.date, count: value.groupIds.size, total: value.total, paid: value.paid }));
   }, [filteredSales]);
 
-  // Calculate totals
+  // Calculate totals - same order-vs-row distinction as salesByDay above.
   const totals = useMemo(() => {
-    const totalSales = filteredSales.length;
+    const totalSales = countOrders(filteredSales);
     const paidSales = filteredSales.filter((s) => s.payment_status === 'paid');
+    const paidOrders = countOrders(paidSales);
     const totalRevenue = paidSales.reduce((sum, s) => sum + Number(s.amount), 0);
     const pendingRevenue = filteredSales
       .filter((s) => s.payment_status === 'pending')
       .reduce((sum, s) => sum + Number(s.amount), 0);
-    const averageTicket = paidSales.length > 0 ? totalRevenue / paidSales.length : 0;
-    const conversionRate = totalSales > 0 ? (paidSales.length / totalSales) * 100 : 0;
+    const averageTicket = paidOrders > 0 ? totalRevenue / paidOrders : 0;
+    const conversionRate = totalSales > 0 ? (paidOrders / totalSales) * 100 : 0;
 
     return { totalSales, totalRevenue, pendingRevenue, averageTicket, conversionRate };
   }, [filteredSales]);
