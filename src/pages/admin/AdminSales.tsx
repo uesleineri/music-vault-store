@@ -518,7 +518,7 @@ export default function AdminSales() {
                             variant="ghost"
                             size="sm"
                             className="gap-1.5"
-                            disabled={verifyPayment.isPending}
+                            disabled={verifyPayment.isPending && verifyPayment.variables === sale.id}
                             onClick={() => verifyPayment.mutate(sale.id)}
                           >
                             {verifyPayment.isPending && verifyPayment.variables === sale.id ? (
@@ -534,7 +534,7 @@ export default function AdminSales() {
                             variant="ghost"
                             size="sm"
                             className="gap-1.5"
-                            disabled={resendDownload.isPending}
+                            disabled={resendDownload.isPending && resendDownload.variables === sale.id}
                             onClick={() => resendDownload.mutate(sale.id)}
                           >
                             {resendDownload.isPending && resendDownload.variables === sale.id ? (

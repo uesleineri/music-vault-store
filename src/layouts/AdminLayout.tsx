@@ -47,7 +47,7 @@ export function AdminLayout() {
       {/* Sidebar */}
       <aside className="w-64 border-r bg-sidebar">
         <div className="p-6">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
+          <Link to="/admin" className="flex items-center gap-2 font-bold text-xl">
             <Music className="h-6 w-6" />
             <span>Admin</span>
           </Link>

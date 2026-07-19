@@ -87,10 +87,20 @@ export function BulkImportDialog({ open, onOpenChange }: BulkImportDialogProps) 
   const handleStartImport = async () => {
     setIsImporting(true);
 
+    // Tracked locally instead of re-reading `rows` afterwards: `rows` here is
+    // a stale closure over the state as it was when this function started,
+    // so filtering it post-loop always undercounted (updateRow's setState
+    // calls never mutate this local reference).
+    let successCount = 0;
+    const totalToProcess = rows.length;
+
     // Sequential on purpose: keeps Drive API usage predictable and gives clear
     // per-item progress instead of racing many huge uploads at once.
     for (const row of rows) {
-      if (row.status === 'done') continue;
+      if (row.status === 'done') {
+        successCount++;
+        continue;
+      }
 
       updateRow(row.key, { status: 'uploading', progress: 0, errorMessage: undefined });
 
@@ -122,15 +132,15 @@ export function BulkImportDialog({ open, onOpenChange }: BulkImportDialogProps) 
       }
 
       updateRow(row.key, { status: 'done', progress: 100 });
+      successCount++;
     }
 
     setIsImporting(false);
     queryClient.invalidateQueries({ queryKey: ['multitracks'] });
 
-    const successCount = rows.filter((r) => r.status === 'done').length;
     toast({
       title: 'Importação em lote concluída',
-      description: `${successCount} de ${rows.length} multitracks cadastradas. Edite depois para adicionar capa/preview.`,
+      description: `${successCount} de ${totalToProcess} multitracks cadastradas. Edite depois para adicionar capa/preview.`,
     });
   };
 

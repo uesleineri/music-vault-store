@@ -334,9 +334,15 @@ export default function AdminMultitracks() {
         description: 'A multitrack foi excluída com sucesso.',
       });
     } catch (error: any) {
+      // Postgres foreign key violation: this multitrack already has sales
+      // history, which the DB now refuses to delete (see migration
+      // 20260719123908 - it used to silently cascade-delete that history).
+      const isFkViolation = error?.code === '23503';
       toast({
         title: 'Erro ao remover',
-        description: error.message || 'Tente novamente.',
+        description: isFkViolation
+          ? 'Esta multitrack já tem vendas registradas e não pode ser excluída, para não perder o histórico. Use o botão de despublicar em vez de excluir.'
+          : error.message || 'Tente novamente.',
         variant: 'destructive',
       });
     }
@@ -601,7 +607,7 @@ export default function AdminMultitracks() {
                       <Switch
                         checked={multitrack.is_active}
                         onCheckedChange={() => handleToggleActive(multitrack)}
-                        disabled={updateMultitrack.isPending}
+                        disabled={updateMultitrack.isPending && updateMultitrack.variables?.id === multitrack.id}
                         aria-label={multitrack.is_active ? 'Despublicar' : 'Publicar'}
                       />
                     </TableCell>
@@ -624,7 +630,8 @@ export default function AdminMultitracks() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Excluir multitrack?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. A multitrack será removida permanentemente.
+                                Esta ação não pode ser desfeita. Se esta multitrack já tiver vendas registradas,
+                                a exclusão será bloqueada — use "Despublicar" nesse caso.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
