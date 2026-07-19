@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -83,6 +84,9 @@ export default function AdminLogin() {
   if (user && needsMfaVerification) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
+        <div className="fixed top-4 right-4">
+          <ThemeToggle />
+        </div>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
@@ -125,6 +129,9 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">

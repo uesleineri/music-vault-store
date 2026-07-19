@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { LayoutDashboard, Music, ShoppingCart, LogOut, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
@@ -80,10 +81,11 @@ export function AdminLayout() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">
-        <header className="h-16 border-b flex items-center px-6">
+        <header className="h-16 border-b flex items-center justify-between px-6">
           <h1 className="text-lg font-semibold">
             {navItems.find((item) => item.href === location.pathname)?.label || 'Admin'}
           </h1>
+          <ThemeToggle />
         </header>
         <main className="flex-1 p-6 bg-muted/30">
           <Outlet />

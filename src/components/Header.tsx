@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function Header() {
   return (
@@ -14,6 +15,7 @@ export function Header() {
           <Link to="/catalog">
             <Button variant="ghost">Catálogo</Button>
           </Link>
+          <ThemeToggle />
         </nav>
       </div>
     </header>
