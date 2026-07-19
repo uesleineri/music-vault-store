@@ -36,6 +36,8 @@ import { useMultitracks, useCreateMultitrack, useUpdateMultitrack, useDeleteMult
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Multitrack } from '@/types/multitrack';
+import { sanitizeFileName, uploadAudioToDrive, uploadToSupabaseStorage } from '@/lib/driveUpload';
+import { BulkImportDialog } from '@/components/admin/BulkImportDialog';
 
 const PAGE_SIZE = 10;
 
@@ -69,6 +71,7 @@ export default function AdminMultitracks() {
     }
   };
 
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -179,114 +182,6 @@ export default function AdminMultitracks() {
 
     setIsUploading(true);
 
-    // Sanitize file name - remove special characters and spaces
-    const sanitizeFileName = (name: string) => {
-      return name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove accents
-        .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace special chars with underscore
-        .replace(/_+/g, '_'); // Remove multiple underscores
-    };
-
-    // Upload with progress tracking using XMLHttpRequest
-    const uploadWithProgress = (
-      bucket: string,
-      fileName: string,
-      file: File,
-      onProgress: (percent: number) => void
-    ): Promise<{ error: Error | null }> => {
-      return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${bucket}/${fileName}`;
-
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percent = (event.loaded / event.total) * 100;
-            onProgress(percent);
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve({ error: null });
-          } else {
-            let errorMessage = 'Upload failed';
-            try {
-              const response = JSON.parse(xhr.responseText);
-              errorMessage = response.message || response.error || errorMessage;
-            } catch {
-              errorMessage = xhr.statusText || errorMessage;
-            }
-            resolve({ error: new Error(errorMessage) });
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          resolve({ error: new Error('Network error during upload') });
-        });
-
-        xhr.open('POST', url);
-        xhr.setRequestHeader('Authorization', `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`);
-        xhr.setRequestHeader('x-upsert', 'false');
-        xhr.send(file);
-      });
-    };
-
-    // Large multitrack files go straight to Google Drive: the Edge Function opens a
-    // resumable session (so it never has to receive the full file itself), and the
-    // browser uploads directly to the returned Drive URL.
-    const uploadAudioToDrive = async (
-      file: File,
-      artistName: string,
-      songName: string,
-      onProgress: (percent: number) => void
-    ): Promise<{ driveFileId: string | null; error: Error | null }> => {
-      const { data, error: initError } = await supabase.functions.invoke('drive-init-upload', {
-        body: {
-          file_name: sanitizeFileName(file.name),
-          mime_type: file.type || 'application/octet-stream',
-          artist_name: artistName,
-          song_name: songName,
-        },
-      });
-
-      if (initError || !data?.resumable_url) {
-        return { driveFileId: null, error: new Error(initError?.message || 'Falha ao iniciar upload no Drive') };
-      }
-
-      return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
-
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            onProgress((event.loaded / event.total) * 100);
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const response = JSON.parse(xhr.responseText);
-              resolve({ driveFileId: response.id, error: null });
-            } catch {
-              resolve({ driveFileId: null, error: new Error('Resposta inválida do Google Drive') });
-            }
-          } else {
-            resolve({ driveFileId: null, error: new Error(`Upload para o Drive falhou (status ${xhr.status})`) });
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          resolve({ driveFileId: null, error: new Error('Erro de rede ao enviar para o Drive') });
-        });
-
-        xhr.open('PUT', data.resumable_url);
-        xhr.setRequestHeader('Authorization', `Bearer ${data.access_token}`);
-        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        xhr.send(file);
-      });
-    };
-
     try {
       let fileUrl = editingMultitrack?.file_url || '';
       let coverUrl = editingMultitrack?.cover_url || null;
@@ -330,7 +225,7 @@ export default function AdminMultitracks() {
         console.log('Uploading cover:', coverFile.name);
         const coverFileName = `${Date.now()}-${sanitizeFileName(coverFile.name)}`;
         
-        const { error: coverError } = await uploadWithProgress(
+        const { error: coverError } = await uploadToSupabaseStorage(
           'covers',
           coverFileName,
           coverFile,
@@ -359,7 +254,7 @@ export default function AdminMultitracks() {
         console.log('Uploading preview:', previewFile.name);
         const previewFileName = `${Date.now()}-${sanitizeFileName(previewFile.name)}`;
         
-        const { error: previewError } = await uploadWithProgress(
+        const { error: previewError } = await uploadToSupabaseStorage(
           'previews',
           previewFileName,
           previewFile,
@@ -458,6 +353,10 @@ export default function AdminMultitracks() {
         </div>
         <div className="flex items-center gap-3">
           <SearchBar onSearch={handleSearch} className="w-full md:w-72" placeholder="Buscar por artista ou música..." />
+        <Button variant="outline" className="gap-2" onClick={() => setIsBulkImportOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Importar em lote
+        </Button>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
@@ -796,6 +695,8 @@ export default function AdminMultitracks() {
           </div>
         </div>
       )}
+
+      <BulkImportDialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen} />
     </div>
   );
 }
