@@ -4,11 +4,14 @@ import { ArrowRight, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/SearchBar';
 import { MultitrackCard } from '@/components/MultitrackCard';
+import { BundleCard } from '@/components/BundleCard';
 import { useMultitracks } from '@/hooks/useMultitracks';
+import { useBundles } from '@/hooks/useBundles';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const { data, isLoading } = useMultitracks({ searchQuery, pageSize: 4 });
+  const { data: bundles } = useBundles();
 
   const featuredMultitracks = data?.data || [];
 
@@ -33,6 +36,26 @@ export default function Home() {
           />
         </div>
       </section>
+
+      {/* Kits Section - only shown once at least one bundle is published */}
+      {bundles && bundles.length > 0 && (
+        <section className="py-16 container">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold">Kits promocionais</h2>
+            <Link to="/kits">
+              <Button variant="ghost" className="gap-2">
+                Ver todos <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {bundles.map((bundle) => (
+              <BundleCard key={bundle.id} bundle={bundle} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Featured Section */}
       <section className="py-16 container">
