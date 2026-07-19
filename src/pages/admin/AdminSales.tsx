@@ -51,6 +51,7 @@ const periodOptions = [
   { value: '7', label: 'Últimos 7 dias' },
   { value: '30', label: 'Últimos 30 dias' },
   { value: '90', label: 'Últimos 90 dias' },
+  { value: 'all', label: 'Todo o período' },
 ];
 
 const chartConfig = {
@@ -130,6 +131,11 @@ export default function AdminSales() {
         break;
       case 'year':
         start = startOfYear(now);
+        break;
+      case 'all':
+        start = sales && sales.length > 0
+          ? startOfDay(new Date(Math.min(...sales.map((s) => new Date(s.created_at).getTime()))))
+          : startOfDay(now);
         break;
       default:
         start = startOfDay(subDays(now, parseInt(period)));
