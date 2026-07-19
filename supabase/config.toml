@@ -1,4 +1,4 @@
-project_id = "nskbbfpciuoredlkezhw"
+project_id = "nhbuivrsbiivimeoyqqr"
 
 [functions.create-payment]
 verify_jwt = false
@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.generate-preview]
 verify_jwt = false
+
+[functions.drive-init-upload]
+verify_jwt = true
+
+[functions.verify-payment]
+verify_jwt = true
+
+[functions.resend-download]
+verify_jwt = true

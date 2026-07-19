@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Music, Loader2, Search, Image } from 'lucide-react';
+import { Plus, Pencil, Trash2, Music, Loader2, Search, Image, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -30,19 +30,45 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { SearchBar } from '@/components/SearchBar';
 import { useMultitracks, useCreateMultitrack, useUpdateMultitrack, useDeleteMultitrack } from '@/hooks/useMultitracks';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Multitrack } from '@/types/multitrack';
 
+const PAGE_SIZE = 10;
+
 export default function AdminMultitracks() {
-  const { data, isLoading } = useMultitracks({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useMultitracks({ searchQuery, page, pageSize: PAGE_SIZE, includeInactive: true });
   const multitracks = data?.data;
   const createMultitrack = useCreateMultitrack();
   const updateMultitrack = useUpdateMultitrack();
   const deleteMultitrack = useDeleteMultitrack();
   const { toast } = useToast();
-  
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    setPage(1);
+  };
+
+  const handleToggleActive = async (multitrack: Multitrack) => {
+    try {
+      await updateMultitrack.mutateAsync({ id: multitrack.id, is_active: !multitrack.is_active });
+      toast({
+        title: multitrack.is_active ? 'Multitrack despublicada' : 'Multitrack publicada',
+        description: multitrack.is_active
+          ? 'Ela não aparece mais na loja, mas continua cadastrada.'
+          : 'Ela já está visível na loja novamente.',
+      });
+    } catch (error: any) {
+      toast({ title: 'Erro ao atualizar status', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -206,6 +232,61 @@ export default function AdminMultitracks() {
       });
     };
 
+    // Large multitrack files go straight to Google Drive: the Edge Function opens a
+    // resumable session (so it never has to receive the full file itself), and the
+    // browser uploads directly to the returned Drive URL.
+    const uploadAudioToDrive = async (
+      file: File,
+      artistName: string,
+      songName: string,
+      onProgress: (percent: number) => void
+    ): Promise<{ driveFileId: string | null; error: Error | null }> => {
+      const { data, error: initError } = await supabase.functions.invoke('drive-init-upload', {
+        body: {
+          file_name: sanitizeFileName(file.name),
+          mime_type: file.type || 'application/octet-stream',
+          artist_name: artistName,
+          song_name: songName,
+        },
+      });
+
+      if (initError || !data?.resumable_url) {
+        return { driveFileId: null, error: new Error(initError?.message || 'Falha ao iniciar upload no Drive') };
+      }
+
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            onProgress((event.loaded / event.total) * 100);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve({ driveFileId: response.id, error: null });
+            } catch {
+              resolve({ driveFileId: null, error: new Error('Resposta inválida do Google Drive') });
+            }
+          } else {
+            resolve({ driveFileId: null, error: new Error(`Upload para o Drive falhou (status ${xhr.status})`) });
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          resolve({ driveFileId: null, error: new Error('Erro de rede ao enviar para o Drive') });
+        });
+
+        xhr.open('PUT', data.resumable_url);
+        xhr.setRequestHeader('Authorization', `Bearer ${data.access_token}`);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.send(file);
+      });
+    };
+
     try {
       let fileUrl = editingMultitrack?.file_url || '';
       let coverUrl = editingMultitrack?.cover_url || null;
@@ -222,24 +303,23 @@ export default function AdminMultitracks() {
         setUploadProgress(Math.round(baseProgress + currentFileContribution));
       };
 
-      // Upload audio file if provided
+      // Upload audio file if provided (goes to Google Drive, not Supabase Storage)
       if (audioFile) {
-        setCurrentUploadStep('Enviando arquivo multitrack...');
-        console.log('Starting upload for:', audioFile.name);
-        const audioFileName = `${Date.now()}-${sanitizeFileName(audioFile.name)}`;
-        
-        const { error: audioError } = await uploadWithProgress(
-          'multitracks',
-          audioFileName,
+        setCurrentUploadStep('Enviando arquivo multitrack para o Google Drive...');
+        console.log('Starting Drive upload for:', audioFile.name);
+
+        const { driveFileId, error: audioError } = await uploadAudioToDrive(
           audioFile,
+          formData.artist_name,
+          formData.song_name,
           updateOverallProgress
         );
-        
-        if (audioError) {
+
+        if (audioError || !driveFileId) {
           console.error('Audio upload error:', audioError);
-          throw new Error(`Erro no upload: ${audioError.message}`);
+          throw new Error(`Erro no upload: ${audioError?.message || 'ID do arquivo não retornado'}`);
         }
-        fileUrl = audioFileName;
+        fileUrl = driveFileId;
         completedFiles++;
         updateOverallProgress(0);
       }
@@ -326,6 +406,7 @@ export default function AdminMultitracks() {
           file_url: fileUrl,
           cover_url: coverUrl,
           preview_url: previewUrl,
+          is_active: true,
         });
 
         toast({
@@ -368,13 +449,15 @@ export default function AdminMultitracks() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Multitracks</h2>
           <p className="text-muted-foreground">
-            Gerencie seu catálogo de multitracks
+            {data?.totalCount ?? 0} multitrack{data?.totalCount === 1 ? '' : 's'} no catálogo (incluindo despublicadas)
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <SearchBar onSearch={handleSearch} className="w-full md:w-72" placeholder="Buscar por artista ou música..." />
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
@@ -574,6 +657,7 @@ export default function AdminMultitracks() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -591,12 +675,13 @@ export default function AdminMultitracks() {
                   <TableHead>Música</TableHead>
                   <TableHead>Artista</TableHead>
                   <TableHead>Preço</TableHead>
+                  <TableHead>Publicada</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {multitracks.map((multitrack) => (
-                  <TableRow key={multitrack.id}>
+                  <TableRow key={multitrack.id} className={multitrack.is_active ? undefined : 'opacity-60'}>
                     <TableCell>
                       <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
                         {multitrack.cover_url ? (
@@ -613,6 +698,14 @@ export default function AdminMultitracks() {
                     <TableCell className="font-medium">{multitrack.song_name}</TableCell>
                     <TableCell>{multitrack.artist_name}</TableCell>
                     <TableCell>R$ {multitrack.price.toFixed(2).replace('.', ',')}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={multitrack.is_active}
+                        onCheckedChange={() => handleToggleActive(multitrack)}
+                        disabled={updateMultitrack.isPending}
+                        aria-label={multitrack.is_active ? 'Despublicar' : 'Publicar'}
+                      />
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button 
@@ -655,18 +748,54 @@ export default function AdminMultitracks() {
           ) : (
             <div className="p-8 text-center">
               <Music className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="font-semibold mb-1">Nenhuma multitrack</h3>
+              <h3 className="font-semibold mb-1">
+                {searchQuery ? 'Nenhum resultado encontrado' : 'Nenhuma multitrack'}
+              </h3>
               <p className="text-muted-foreground mb-4">
-                Adicione sua primeira multitrack para começar.
+                {searchQuery
+                  ? 'Tente buscar por outro artista ou música.'
+                  : 'Adicione sua primeira multitrack para começar.'}
               </p>
-              <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Nova Multitrack
-              </Button>
+              {!searchQuery && (
+                <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Nova Multitrack
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {data && data.totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Página {data.currentPage} de {data.totalPages} ({data.totalCount} no total)
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
+              disabled={page === data.totalPages}
+              className="gap-1"
+            >
+              Próxima
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -95,17 +95,6 @@ export function useAuth() {
     return data;
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ 
-      email, 
-      password,
-      options: {
-        emailRedirectTo: window.location.origin
-      }
-    });
-    if (error) throw error;
-  };
-
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -117,7 +106,6 @@ export function useAuth() {
     isAdmin,
     loading,
     signIn,
-    signUp,
     signOut,
   };
 }

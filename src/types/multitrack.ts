@@ -6,6 +6,7 @@ export interface Multitrack {
   cover_url: string | null;
   file_url: string;
   preview_url: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

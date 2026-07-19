@@ -4,7 +4,7 @@ import { useMultitracks } from '@/hooks/useMultitracks';
 import { useSalesStats, useTopSelling } from '@/hooks/useSales';
 
 export default function AdminDashboard() {
-  const { data } = useMultitracks({});
+  const { data } = useMultitracks({ includeInactive: true });
   const { data: stats } = useSalesStats();
   const { data: topSelling } = useTopSelling();
 

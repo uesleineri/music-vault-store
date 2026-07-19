@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { googleDrive } from "../_shared/google-drive.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,35 +53,30 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Generate signed URL for the file
-    const fileUrl = sale.multitrack?.file_url;
-    if (!fileUrl) {
+    // file_url stores the Google Drive file ID for the multitrack
+    const driveFileId = sale.multitrack?.file_url;
+    if (!driveFileId) {
       return new Response(
         JSON.stringify({ error: "Arquivo não encontrado" }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Extract file path from URL
-    const urlParts = fileUrl.split("/storage/v1/object/public/multitracks/");
-    const filePath = urlParts[1] || fileUrl.split("/").pop();
+    const accessToken = await googleDrive.getAccessToken();
 
-    // Create signed URL (valid for 1 hour)
-    const { data: signedUrl, error: signError } = await supabase.storage
-      .from("multitracks")
-      .createSignedUrl(filePath, 3600);
-
-    if (signError) {
-      console.error("Error creating signed URL:", signError);
-      return new Response(
-        JSON.stringify({ error: "Erro ao gerar link de download" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    // Make sure the buyer has read access even if the webhook's share call
+    // hasn't landed yet (e.g. manual payment confirmation).
+    try {
+      await googleDrive.shareFileWithUser(driveFileId, sale.buyer_email, accessToken, sale.download_expires_at);
+    } catch (shareError) {
+      console.error("Non-fatal: failed to (re)share Drive file:", shareError);
     }
+
+    const driveFile = await googleDrive.getFile(driveFileId, accessToken, "id,webViewLink");
 
     return new Response(
       JSON.stringify({
-        download_url: signedUrl.signedUrl,
+        download_url: driveFile.webViewLink,
         multitrack: {
           artist_name: sale.multitrack?.artist_name,
           song_name: sale.multitrack?.song_name,

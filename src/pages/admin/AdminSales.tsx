@@ -1,9 +1,13 @@
 import { useState, useMemo } from 'react';
 import { format, startOfDay, endOfDay, subDays, isWithinInterval, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Music, ShoppingCart, Loader2, Calendar, TrendingUp } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Music, ShoppingCart, Loader2, Calendar, TrendingUp, RefreshCw, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import {
   Table,
   TableBody,
@@ -50,6 +54,52 @@ const chartConfig = {
 export default function AdminSales() {
   const { data: sales, isLoading } = useSales();
   const [period, setPeriod] = useState('30');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const verifyPayment = useMutation({
+    mutationFn: async (saleId: string) => {
+      const { data, error } = await supabase.functions.invoke('verify-payment', {
+        body: { sale_id: saleId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.already_paid) {
+        toast({ title: 'Essa venda já estava marcada como paga.' });
+      } else if (data.confirmed) {
+        toast({ title: 'Pagamento confirmado na Asaas!', description: 'Arquivo compartilhado com o comprador.' });
+        queryClient.invalidateQueries({ queryKey: ['sales'] });
+        queryClient.invalidateQueries({ queryKey: ['sales-stats'] });
+      } else {
+        toast({
+          title: 'Pagamento ainda não confirmado',
+          description: data.message || `Status na Asaas: ${data.asaas_status}`,
+          variant: 'destructive',
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro ao verificar pagamento', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const resendDownload = useMutation({
+    mutationFn: async (saleId: string) => {
+      const { data, error } = await supabase.functions.invoke('resend-download', {
+        body: { sale_id: saleId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({ title: 'Download reenviado!', description: `E-mail enviado para ${data.sent_to}.` });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro ao reenviar download', description: error.message, variant: 'destructive' });
+    },
+  });
 
   // Filter sales by period
   const { filteredSales, startDate, endDate } = useMemo(() => {
@@ -326,6 +376,7 @@ export default function AdminSales() {
                   <TableHead>Comprador</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -363,6 +414,40 @@ export default function AdminSales() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={status.variant}>{status.label}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {sale.payment_status === 'pending' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={verifyPayment.isPending}
+                            onClick={() => verifyPayment.mutate(sale.id)}
+                          >
+                            {verifyPayment.isPending && verifyPayment.variables === sale.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                            Verificar status
+                          </Button>
+                        )}
+                        {sale.payment_status === 'paid' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={resendDownload.isPending}
+                            onClick={() => resendDownload.mutate(sale.id)}
+                          >
+                            {resendDownload.isPending && resendDownload.variables === sale.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
+                            )}
+                            Reenviar download
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

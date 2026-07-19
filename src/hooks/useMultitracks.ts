@@ -8,19 +8,22 @@ interface MultitracksParams {
   pageSize?: number;
   sortBy?: 'created_at' | 'artist_name' | 'song_name' | 'price';
   sortOrder?: 'asc' | 'desc';
+  // Admin views pass this to see unpublished multitracks too.
+  includeInactive?: boolean;
 }
 
 export function useMultitracks(params: MultitracksParams = {}) {
-  const { 
-    searchQuery, 
-    page = 1, 
-    pageSize = 12, 
-    sortBy = 'created_at', 
-    sortOrder = 'desc' 
+  const {
+    searchQuery,
+    page = 1,
+    pageSize = 12,
+    sortBy = 'created_at',
+    sortOrder = 'desc',
+    includeInactive = false,
   } = params;
 
   return useQuery({
-    queryKey: ['multitracks', searchQuery, page, pageSize, sortBy, sortOrder],
+    queryKey: ['multitracks', searchQuery, page, pageSize, sortBy, sortOrder, includeInactive],
     queryFn: async () => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -31,13 +34,17 @@ export function useMultitracks(params: MultitracksParams = {}) {
         .order(sortBy, { ascending: sortOrder === 'asc' })
         .range(from, to);
 
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
       if (searchQuery) {
         query = query.or(`artist_name.ilike.%${searchQuery}%,song_name.ilike.%${searchQuery}%`);
       }
 
       const { data, error, count } = await query;
       if (error) throw error;
-      
+
       return {
         data: data as Multitrack[],
         totalCount: count || 0,
@@ -56,8 +63,9 @@ export function useMultitrack(id: string) {
         .from('multitracks')
         .select('*')
         .eq('id', id)
+        .eq('is_active', true)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data as Multitrack | null;
     },
