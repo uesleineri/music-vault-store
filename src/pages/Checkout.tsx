@@ -124,8 +124,6 @@ export default function Checkout() {
           buyer_email: email,
           buyer_cpf: cpfNumbers,
           buyer_phone: phoneNumbers,
-          amount: multitrack.price,
-          multitrack_name: `${multitrack.artist_name} - ${multitrack.song_name}`,
         },
       });
 

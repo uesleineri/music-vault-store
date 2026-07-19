@@ -12,8 +12,6 @@ interface CreatePaymentRequest {
   buyer_email: string;
   buyer_cpf: string;
   buyer_phone: string;
-  amount: number;
-  multitrack_name: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -31,7 +29,25 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { multitrack_id, buyer_name, buyer_email, buyer_cpf, buyer_phone, amount, multitrack_name }: CreatePaymentRequest = await req.json();
+    const { multitrack_id, buyer_name, buyer_email, buyer_cpf, buyer_phone }: CreatePaymentRequest = await req.json();
+
+    // Never trust a price from the client - look up the real, current price
+    // for this multitrack so a tampered request can't buy it for less.
+    const { data: multitrack, error: multitrackError } = await supabase
+      .from("multitracks")
+      .select("artist_name, song_name, price, is_active")
+      .eq("id", multitrack_id)
+      .single();
+
+    if (multitrackError || !multitrack || !multitrack.is_active) {
+      return new Response(
+        JSON.stringify({ error: "Produto não encontrado ou indisponível" }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const amount = multitrack.price;
+    const multitrack_name = `${multitrack.artist_name} - ${multitrack.song_name}`;
 
     // Generate unique download token
     const downloadToken = crypto.randomUUID();

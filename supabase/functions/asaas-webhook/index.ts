@@ -4,6 +4,16 @@ import { googleDrive } from "../_shared/google-drive.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   try {
+    // Asaas sends back the exact token configured in its webhook settings on
+    // every request. Without this check, anyone who finds this URL could POST
+    // a fake "PAYMENT_CONFIRMED" event and unlock any file for free.
+    const expectedToken = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
+    const receivedToken = req.headers.get("asaas-access-token");
+    if (!expectedToken || receivedToken !== expectedToken) {
+      console.error("Rejected webhook call: invalid or missing asaas-access-token header");
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
