@@ -36,6 +36,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { TwoFactorSettings } from '@/components/admin/TwoFactorSettings';
 
 interface AdminRow {
   id: string;
@@ -110,6 +111,8 @@ export default function AdminAdministrators() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <TwoFactorSettings />
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Administradores</h2>

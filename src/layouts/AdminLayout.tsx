@@ -13,7 +13,7 @@ const navItems = [
 
 export function AdminLayout() {
   const location = useLocation();
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, isAdmin, loading, signOut, needsMfaVerification } = useAuth();
 
   if (loading) {
     return (
@@ -23,7 +23,7 @@ export function AdminLayout() {
     );
   }
 
-  if (!user) {
+  if (!user || needsMfaVerification) {
     return <Navigate to="/admin/login" replace />;
   }
 
