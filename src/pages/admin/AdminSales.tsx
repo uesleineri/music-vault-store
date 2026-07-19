@@ -1,8 +1,18 @@
 import { useState, useMemo } from 'react';
-import { format, startOfDay, endOfDay, subDays, isWithinInterval, eachDayOfInterval } from 'date-fns';
+import {
+  format,
+  startOfDay,
+  endOfDay,
+  subDays,
+  isWithinInterval,
+  eachDayOfInterval,
+  startOfWeek,
+  startOfMonth,
+  startOfYear,
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music, ShoppingCart, Loader2, Calendar, TrendingUp, RefreshCw, Send, Download } from 'lucide-react';
+import { Music, ShoppingCart, Loader2, Calendar, TrendingUp, RefreshCw, Send, Download, Receipt, Percent } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,8 +44,11 @@ const statusLabels: Record<string, { label: string; variant: 'default' | 'second
 };
 
 const periodOptions = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'week', label: 'Esta semana' },
+  { value: 'month', label: 'Este mês' },
+  { value: 'year', label: 'Este ano' },
   { value: '7', label: 'Últimos 7 dias' },
-  { value: '14', label: 'Últimos 14 dias' },
   { value: '30', label: 'Últimos 30 dias' },
   { value: '90', label: 'Últimos 90 dias' },
 ];
@@ -103,9 +116,25 @@ export default function AdminSales() {
 
   // Filter sales by period
   const { filteredSales, startDate, endDate } = useMemo(() => {
-    const days = parseInt(period);
-    const start = startOfDay(subDays(new Date(), days));
-    const end = endOfDay(new Date());
+    const now = new Date();
+    let start: Date;
+    switch (period) {
+      case 'today':
+        start = startOfDay(now);
+        break;
+      case 'week':
+        start = startOfWeek(now, { weekStartsOn: 0 });
+        break;
+      case 'month':
+        start = startOfMonth(now);
+        break;
+      case 'year':
+        start = startOfYear(now);
+        break;
+      default:
+        start = startOfDay(subDays(now, parseInt(period)));
+    }
+    const end = endOfDay(now);
 
     if (!sales) return { filteredSales: [], startDate: start, endDate: end };
 
@@ -169,14 +198,15 @@ export default function AdminSales() {
   // Calculate totals
   const totals = useMemo(() => {
     const totalSales = filteredSales.length;
-    const totalRevenue = filteredSales
-      .filter((s) => s.payment_status === 'paid')
-      .reduce((sum, s) => sum + Number(s.amount), 0);
+    const paidSales = filteredSales.filter((s) => s.payment_status === 'paid');
+    const totalRevenue = paidSales.reduce((sum, s) => sum + Number(s.amount), 0);
     const pendingRevenue = filteredSales
       .filter((s) => s.payment_status === 'pending')
       .reduce((sum, s) => sum + Number(s.amount), 0);
+    const averageTicket = paidSales.length > 0 ? totalRevenue / paidSales.length : 0;
+    const conversionRate = totalSales > 0 ? (paidSales.length / totalSales) * 100 : 0;
 
-    return { totalSales, totalRevenue, pendingRevenue };
+    return { totalSales, totalRevenue, pendingRevenue, averageTicket, conversionRate };
   }, [filteredSales]);
 
   const handleExportCsv = () => {
@@ -234,7 +264,7 @@ export default function AdminSales() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -269,6 +299,32 @@ export default function AdminSales() {
           <CardContent>
             <div className="text-2xl font-bold text-muted-foreground">
               R$ {totals.pendingRevenue.toFixed(2).replace('.', ',')}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Ticket Médio
+            </CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              R$ {totals.averageTicket.toFixed(2).replace('.', ',')}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Taxa de Conversão
+            </CardTitle>
+            <Percent className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {totals.conversionRate.toFixed(1).replace('.', ',')}%
             </div>
           </CardContent>
         </Card>

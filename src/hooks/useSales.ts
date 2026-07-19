@@ -26,15 +26,41 @@ export function useSalesStats() {
     queryFn: async () => {
       const { data: sales, error } = await supabase
         .from('sales')
-        .select('amount, payment_status')
-        .eq('payment_status', 'paid');
-      
+        .select('amount, payment_status');
+
       if (error) throw error;
 
-      const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      const totalSales = sales.length;
+      const paid = sales.filter((s) => s.payment_status === 'paid');
+      const totalRevenue = paid.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const totalSales = paid.length;
+      const totalAttempts = sales.length;
 
-      return { totalRevenue, totalSales };
+      return {
+        totalRevenue,
+        totalSales,
+        averageTicket: totalSales > 0 ? totalRevenue / totalSales : 0,
+        // Of everyone who started a checkout (any status), how many actually paid.
+        conversionRate: totalAttempts > 0 ? (totalSales / totalAttempts) * 100 : 0,
+      };
+    },
+  });
+}
+
+// Multitracks that have never had a paid sale - useful to spot dead stock.
+export function useStagnantProducts() {
+  return useQuery({
+    queryKey: ['stagnant-products'],
+    queryFn: async () => {
+      const [{ data: multitracks, error: mtError }, { data: paidSales, error: salesError }] = await Promise.all([
+        supabase.from('multitracks').select('id, artist_name, song_name, cover_url, price, is_active'),
+        supabase.from('sales').select('multitrack_id').eq('payment_status', 'paid'),
+      ]);
+
+      if (mtError) throw mtError;
+      if (salesError) throw salesError;
+
+      const soldIds = new Set(paidSales.map((s) => s.multitrack_id));
+      return multitracks.filter((mt) => !soldIds.has(mt.id));
     },
   });
 }

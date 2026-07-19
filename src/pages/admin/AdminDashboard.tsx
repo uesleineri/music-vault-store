@@ -1,4 +1,4 @@
-import { Music, DollarSign, ShoppingCart, TrendingUp, Clock, HardDrive } from 'lucide-react';
+import { Music, DollarSign, ShoppingCart, TrendingUp, TrendingDown, Clock, HardDrive, Percent, Receipt } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useMultitracks } from '@/hooks/useMultitracks';
-import { useSalesStats, useTopSelling, useSales } from '@/hooks/useSales';
+import { useSalesStats, useTopSelling, useSales, useStagnantProducts } from '@/hooks/useSales';
 import { supabase } from '@/integrations/supabase/client';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
@@ -46,6 +46,7 @@ export default function AdminDashboard() {
   const { data: stats } = useSalesStats();
   const { data: topSelling } = useTopSelling();
   const { data: sales } = useSales();
+  const { data: stagnantProducts } = useStagnantProducts();
   const { data: driveUsage, isLoading: isDriveLoading } = useDriveUsage();
 
   const recentSales = sales?.slice(0, 5) ?? [];
@@ -66,12 +67,22 @@ export default function AdminDashboard() {
       value: `R$ ${(stats?.totalRevenue || 0).toFixed(2).replace('.', ',')}`,
       icon: DollarSign,
     },
+    {
+      title: 'Ticket Médio',
+      value: `R$ ${(stats?.averageTicket || 0).toFixed(2).replace('.', ',')}`,
+      icon: Receipt,
+    },
+    {
+      title: 'Taxa de Conversão',
+      value: `${(stats?.conversionRate || 0).toFixed(1).replace('.', ',')}%`,
+      icon: Percent,
+    },
   ];
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -90,7 +101,7 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {/* Top Selling */}
         <Card>
           <CardHeader>
@@ -183,6 +194,43 @@ export default function AdminDashboard() {
               <div className="text-center py-8 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhuma venda registrada ainda.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Stagnant Products */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5" />
+              Produtos Estagnados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stagnantProducts && stagnantProducts.length > 0 ? (
+              <div className="space-y-4 max-h-72 overflow-y-auto">
+                {stagnantProducts.map((mt) => (
+                  <div key={mt.id} className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                      {mt.cover_url ? (
+                        <img src={mt.cover_url} alt={mt.song_name} className="h-full w-full object-cover rounded" />
+                      ) : (
+                        <Music className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{mt.song_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{mt.artist_name}</p>
+                    </div>
+                    {!mt.is_active && <Badge variant="secondary">Despublicada</Badge>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <TrendingDown className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Todas as músicas já venderam pelo menos uma vez.</p>
               </div>
             )}
           </CardContent>
