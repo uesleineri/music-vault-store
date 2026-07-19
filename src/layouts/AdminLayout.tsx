@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Music, ShoppingCart, LogOut } from 'lucide-react';
+import { LayoutDashboard, Music, ShoppingCart, LogOut, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/multitracks', label: 'Multitracks', icon: Music },
   { href: '/admin/sales', label: 'Vendas', icon: ShoppingCart },
+  { href: '/admin/administrators', label: 'Administradores', icon: Users },
 ];
 
 export function AdminLayout() {

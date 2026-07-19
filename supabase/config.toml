@@ -20,3 +20,9 @@ verify_jwt = true
 
 [functions.resend-download]
 verify_jwt = true
+
+[functions.manage-admins]
+verify_jwt = true
+
+[functions.drive-usage]
+verify_jwt = true

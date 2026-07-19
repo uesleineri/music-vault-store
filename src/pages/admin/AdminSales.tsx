@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { format, startOfDay, endOfDay, subDays, isWithinInterval, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music, ShoppingCart, Loader2, Calendar, TrendingUp, RefreshCw, Send } from 'lucide-react';
+import { Music, ShoppingCart, Loader2, Calendar, TrendingUp, RefreshCw, Send, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -179,6 +179,30 @@ export default function AdminSales() {
     return { totalSales, totalRevenue, pendingRevenue };
   }, [filteredSales]);
 
+  const handleExportCsv = () => {
+    const header = ['Data', 'Música', 'Artista', 'Comprador', 'Valor', 'Status'];
+    const rows = filteredSales.map((sale) => [
+      format(new Date(sale.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+      sale.multitrack?.song_name || 'N/A',
+      sale.multitrack?.artist_name || 'N/A',
+      sale.buyer_email,
+      Number(sale.amount).toFixed(2).replace('.', ','),
+      (statusLabels[sale.payment_status] || statusLabels.pending).label,
+    ]);
+
+    // Escape quotes/commas per RFC 4180 so accented names and commas don't break columns.
+    const escapeCell = (cell: string) => `"${cell.replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map((row) => row.map(escapeCell).join(',')).join('\r\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `vendas-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -188,19 +212,25 @@ export default function AdminSales() {
             Histórico de todas as vendas realizadas
           </p>
         </div>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-[180px]">
-            <Calendar className="h-4 w-4 mr-2" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {periodOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleExportCsv} disabled={filteredSales.length === 0}>
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[180px]">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {periodOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Summary Cards */}
