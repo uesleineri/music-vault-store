@@ -5,12 +5,20 @@ import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/SearchBar';
 import { MultitrackCard } from '@/components/MultitrackCard';
 import { BundleCard } from '@/components/BundleCard';
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
 import { useMultitracks } from '@/hooks/useMultitracks';
 import { useBundles } from '@/hooks/useBundles';
 
+// Stable reference - embla-carousel-react reinitializes (resetting scroll
+// position) whenever this object's identity changes, so it can't be an
+// inline literal re-created on every render.
+const CAROUSEL_OPTS = { align: 'start' as const };
+
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { data, isLoading } = useMultitracks({ searchQuery, pageSize: 4 });
+  // Fetches more than fit on screen at once so the carousel arrows have
+  // something to scroll to.
+  const { data, isLoading } = useMultitracks({ searchQuery, pageSize: 12 });
   const { data: bundles } = useBundles();
 
   const featuredMultitracks = data?.data || [];
@@ -61,11 +69,17 @@ export default function Home() {
             ))}
           </div>
         ) : featuredMultitracks.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredMultitracks.map((multitrack) => (
-              <MultitrackCard key={multitrack.id} multitrack={multitrack} />
-            ))}
-          </div>
+          <Carousel opts={CAROUSEL_OPTS} className="px-1">
+            <CarouselContent>
+              {featuredMultitracks.map((multitrack) => (
+                <CarouselItem key={multitrack.id} className="sm:basis-1/2 lg:basis-1/4">
+                  <MultitrackCard multitrack={multitrack} />
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="-left-4 sm:-left-6" />
+            <CarouselNext className="-right-4 sm:-right-6" />
+          </Carousel>
         ) : (
           <div className="text-center py-16">
             <Music className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
