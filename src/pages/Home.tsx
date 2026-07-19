@@ -69,7 +69,7 @@ export default function Home() {
             ))}
           </div>
         ) : featuredMultitracks.length > 0 ? (
-          <Carousel opts={CAROUSEL_OPTS} className="px-1">
+          <Carousel opts={CAROUSEL_OPTS} className="px-10 sm:px-14">
             <CarouselContent>
               {featuredMultitracks.map((multitrack) => (
                 <CarouselItem key={multitrack.id} className="sm:basis-1/2 lg:basis-1/4">
@@ -77,8 +77,8 @@ export default function Home() {
                 </CarouselItem>
               ))}
             </CarouselContent>
-            <CarouselPrevious className="-left-4 sm:-left-6" />
-            <CarouselNext className="-right-4 sm:-right-6" />
+            <CarouselPrevious className="-left-2 sm:-left-3" />
+            <CarouselNext className="-right-2 sm:-right-3" />
           </Carousel>
         ) : (
           <div className="text-center py-16">
