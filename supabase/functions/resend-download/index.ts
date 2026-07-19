@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logAudit } from "../_shared/audit.ts";
+import { getSaleItems } from "../_shared/sale-items.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -53,7 +54,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: sale, error: saleError } = await supabase
       .from("sales")
-      .select(`*, multitrack:multitracks(*)`)
+      .select(`*, multitrack:multitracks(*), bundle:bundles(*)`)
       .eq("id", sale_id)
       .eq("payment_status", "paid")
       .single();
@@ -65,8 +66,8 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const driveFileId = sale.multitrack?.file_url;
-    if (!driveFileId) {
+    const items = await getSaleItems(supabase, sale);
+    if (items.length === 0) {
       return new Response(JSON.stringify({ error: "Arquivo não encontrado" }), {
         status: 404,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -74,12 +75,9 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const accessToken = await googleDrive.getAccessToken();
-    await googleDrive.resendShareNotification(
-      driveFileId,
-      sale.buyer_email,
-      accessToken,
-      sale.download_expires_at
-    );
+    for (const item of items) {
+      await googleDrive.resendShareNotification(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
+    }
 
     await logAudit(supabase, req, {
       actorId: user.id,
@@ -89,6 +87,8 @@ const handler = async (req: Request): Promise<Response> => {
       targetId: sale_id,
       targetLabel: sale.multitrack
         ? `${sale.multitrack.artist_name} - ${sale.multitrack.song_name} (${sale.buyer_email})`
+        : sale.bundle
+        ? `${sale.bundle.name} (${sale.buyer_email})`
         : sale.buyer_email,
       changes: { new: { resent_to: sale.buyer_email } },
     });

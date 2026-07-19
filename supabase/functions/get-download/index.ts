@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { getSaleItems } from "../_shared/sale-items.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -29,7 +30,8 @@ const handler = async (req: Request): Promise<Response> => {
       .from("sales")
       .select(`
         *,
-        multitrack:multitracks(*)
+        multitrack:multitracks(*),
+        bundle:bundles(*)
       `)
       .eq("download_token", token)
       .eq("payment_status", "paid")
@@ -50,9 +52,8 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // file_url stores the Google Drive file ID for the multitrack
-    const driveFileId = sale.multitrack?.file_url;
-    if (!driveFileId) {
+    const items = await getSaleItems(supabase, sale);
+    if (items.length === 0) {
       return new Response(
         JSON.stringify({ error: "Arquivo não encontrado" }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -61,24 +62,30 @@ const handler = async (req: Request): Promise<Response> => {
 
     const accessToken = await googleDrive.getAccessToken();
 
-    // Make sure the buyer has read access even if the webhook's share call
-    // hasn't landed yet (e.g. manual payment confirmation).
-    try {
-      await googleDrive.shareFileWithUser(driveFileId, sale.buyer_email, accessToken, sale.download_expires_at);
-    } catch (shareError) {
-      console.error("Non-fatal: failed to (re)share Drive file:", shareError);
-    }
-
-    const driveFile = await googleDrive.getFile(driveFileId, accessToken, "id,webViewLink");
+    // For every file in the sale (one for a single multitrack, several for a
+    // bundle): make sure the buyer has read access even if the webhook's
+    // share call hasn't landed yet, then fetch its download link.
+    const files = await Promise.all(
+      items.map(async (item) => {
+        try {
+          await googleDrive.shareFileWithUser(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
+        } catch (shareError) {
+          console.error("Non-fatal: failed to (re)share Drive file:", shareError);
+        }
+        const driveFile = await googleDrive.getFile(item.file_url, accessToken, "id,webViewLink");
+        return {
+          artist_name: item.artist_name,
+          song_name: item.song_name,
+          cover_url: item.cover_url,
+          download_url: driveFile.webViewLink,
+        };
+      })
+    );
 
     return new Response(
       JSON.stringify({
-        download_url: driveFile.webViewLink,
-        multitrack: {
-          artist_name: sale.multitrack?.artist_name,
-          song_name: sale.multitrack?.song_name,
-          cover_url: sale.multitrack?.cover_url,
-        },
+        product_name: sale.bundle?.name ?? null,
+        files,
       }),
       {
         status: 200,

@@ -14,6 +14,9 @@ import Home from "@/pages/Home";
 import Catalog from "@/pages/Catalog";
 import MultitrackDetails from "@/pages/MultitrackDetails";
 import Checkout from "@/pages/Checkout";
+import Kits from "@/pages/Kits";
+import KitDetails from "@/pages/KitDetails";
+import KitCheckout from "@/pages/KitCheckout";
 import DownloadPage from "@/pages/DownloadPage";
 import NotFound from "@/pages/NotFound";
 
@@ -26,6 +29,7 @@ import AdminAdministrators from "@/pages/admin/AdminAdministrators";
 import AdminAuditLogs from "@/pages/admin/AdminAuditLogs";
 import AdminCoupons from "@/pages/admin/AdminCoupons";
 import AdminFinancial from "@/pages/admin/AdminFinancial";
+import AdminBundles from "@/pages/admin/AdminBundles";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +47,9 @@ const App = () => (
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/multitrack/:id" element={<MultitrackDetails />} />
             <Route path="/checkout/:id" element={<Checkout />} />
+            <Route path="/kits" element={<Kits />} />
+            <Route path="/kit/:id" element={<KitDetails />} />
+            <Route path="/checkout/kit/:id" element={<KitCheckout />} />
           </Route>
 
           {/* Download page (no layout) */}
@@ -58,6 +65,7 @@ const App = () => (
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="coupons" element={<AdminCoupons />} />
             <Route path="financial" element={<AdminFinancial />} />
+            <Route path="bundles" element={<AdminBundles />} />
           </Route>
 
           {/* 404 */}

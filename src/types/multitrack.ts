@@ -11,9 +11,30 @@ export interface Multitrack {
   updated_at: string;
 }
 
+export interface Bundle {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  cover_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BundleItem {
+  id: string;
+  bundle_id: string;
+  multitrack_id: string;
+  created_at: string;
+  multitrack?: Multitrack;
+}
+
 export interface Sale {
   id: string;
-  multitrack_id: string;
+  // Exactly one of these two is set - a sale is either for one multitrack or one bundle.
+  multitrack_id: string | null;
+  bundle_id: string | null;
   buyer_email: string;
   amount: number;
   payment_status: 'pending' | 'paid' | 'failed';
@@ -26,6 +47,7 @@ export interface Sale {
   net_amount: number | null;
   created_at: string;
   multitrack?: Multitrack;
+  bundle?: Bundle;
 }
 
 export interface AdminUser {

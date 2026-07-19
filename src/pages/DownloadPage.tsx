@@ -5,13 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 
-interface DownloadData {
+interface DownloadFile {
+  artist_name: string;
+  song_name: string;
+  cover_url: string | null;
   download_url: string;
-  multitrack: {
-    artist_name: string;
-    song_name: string;
-    cover_url: string | null;
-  };
+}
+
+interface DownloadData {
+  product_name: string | null;
+  files: DownloadFile[];
 }
 
 export default function DownloadPage() {
@@ -105,37 +108,39 @@ export default function DownloadPage() {
         </div>
         <h1 className="text-3xl font-bold mb-4">Seu download está pronto!</h1>
         <p className="text-muted-foreground mb-8">
-          Clique no botão abaixo para baixar sua multitrack.
+          {downloadData.files.length > 1
+            ? `Clique nos botões abaixo para baixar as ${downloadData.files.length} multitracks do seu kit.`
+            : 'Clique no botão abaixo para baixar sua multitrack.'}
         </p>
 
-        <Card className="text-left mb-8">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-16 w-16 rounded bg-muted flex items-center justify-center flex-shrink-0">
-              {downloadData.multitrack.cover_url ? (
-                <img
-                  src={downloadData.multitrack.cover_url}
-                  alt={downloadData.multitrack.song_name}
-                  className="h-full w-full object-cover rounded"
-                />
-              ) : (
-                <Music className="h-8 w-8 text-muted-foreground" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold truncate">{downloadData.multitrack.song_name}</h3>
-              <p className="text-sm text-muted-foreground truncate">
-                {downloadData.multitrack.artist_name}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <a href={downloadData.download_url} download>
-          <Button size="lg" className="w-full gap-2 mb-4">
-            <Download className="h-5 w-5" />
-            Baixar Multitrack
-          </Button>
-        </a>
+        <div className="space-y-3 mb-8">
+          {downloadData.files.map((file, index) => (
+            <Card key={index} className="text-left">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="h-16 w-16 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                  {file.cover_url ? (
+                    <img
+                      src={file.cover_url}
+                      alt={file.song_name}
+                      className="h-full w-full object-cover rounded"
+                    />
+                  ) : (
+                    <Music className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold truncate">{file.song_name}</h3>
+                  <p className="text-sm text-muted-foreground truncate">{file.artist_name}</p>
+                </div>
+                <a href={file.download_url} download>
+                  <Button size="icon" variant="secondary">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
         <Link to="/catalog">
           <Button variant="outline" className="w-full">Ver mais multitracks</Button>

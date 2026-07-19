@@ -15,6 +15,9 @@ export function Header() {
           <Link to="/catalog">
             <Button variant="ghost">Catálogo</Button>
           </Link>
+          <Link to="/kits">
+            <Button variant="ghost">Kits</Button>
+          </Link>
           <ThemeToggle />
         </nav>
       </div>

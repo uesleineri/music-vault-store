@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { logAudit } from "../_shared/audit.ts";
+import { getSaleItems } from "../_shared/sale-items.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   try {
@@ -46,7 +47,8 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("id", externalReference)
         .select(`
           *,
-          multitrack:multitracks(*)
+          multitrack:multitracks(*),
+          bundle:bundles(*)
         `)
         .single();
 
@@ -65,28 +67,26 @@ const handler = async (req: Request): Promise<Response> => {
         targetId: sale.id,
         targetLabel: sale.multitrack
           ? `${sale.multitrack.artist_name} - ${sale.multitrack.song_name} (${sale.buyer_email})`
+          : sale.bundle
+          ? `${sale.bundle.name} (${sale.buyer_email})`
           : sale.buyer_email,
         changes: { old: { payment_status: "pending" }, new: { payment_status: "paid" } },
       });
 
-      // Grant the buyer access to the file on Drive; Google sends its own
-      // "shared with you" notification email automatically.
-      const driveFileId = sale.multitrack?.file_url;
-      if (driveFileId) {
-        try {
-          const accessToken = await googleDrive.getAccessToken();
-          await googleDrive.shareFileWithUser(
-            driveFileId,
-            sale.buyer_email,
-            accessToken,
-            sale.download_expires_at
-          );
-          console.log("Shared Drive file with buyer:", sale.buyer_email);
-        } catch (shareError) {
-          // Don't fail the webhook (Asaas would retry) if sharing hiccups -
-          // get-download retries the share as a fallback when the buyer opens the link.
-          console.error("Failed to share Drive file with buyer:", shareError);
+      // Grant the buyer access to every file in the sale (one for a single
+      // multitrack, several for a bundle) - Google sends its own "shared with
+      // you" notification email automatically for each.
+      try {
+        const items = await getSaleItems(supabase, sale);
+        const accessToken = await googleDrive.getAccessToken();
+        for (const item of items) {
+          await googleDrive.shareFileWithUser(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
         }
+        console.log(`Shared ${items.length} Drive file(s) with buyer:`, sale.buyer_email);
+      } catch (shareError) {
+        // Don't fail the webhook (Asaas would retry) if sharing hiccups -
+        // get-download retries the share as a fallback when the buyer opens the link.
+        console.error("Failed to share Drive file(s) with buyer:", shareError);
       }
     }
 
@@ -98,7 +98,7 @@ const handler = async (req: Request): Promise<Response> => {
           .from("sales")
           .update({ payment_status: "failed" })
           .eq("id", externalReference)
-          .select(`*, multitrack:multitracks(*)`)
+          .select(`*, multitrack:multitracks(*), bundle:bundles(*)`)
           .single();
 
         await logAudit(supabase, req, {
@@ -109,6 +109,8 @@ const handler = async (req: Request): Promise<Response> => {
           targetId: externalReference,
           targetLabel: failedSale?.multitrack
             ? `${failedSale.multitrack.artist_name} - ${failedSale.multitrack.song_name} (${failedSale.buyer_email})`
+            : failedSale?.bundle
+            ? `${failedSale.bundle.name} (${failedSale.buyer_email})`
             : failedSale?.buyer_email ?? null,
           changes: { new: { payment_status: "failed", asaas_event: payload.event } },
         });

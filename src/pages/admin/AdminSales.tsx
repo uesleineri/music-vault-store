@@ -219,8 +219,8 @@ export default function AdminSales() {
     const header = ['Data', 'Música', 'Artista', 'Comprador', 'Valor', 'Status'];
     const rows = filteredSales.map((sale) => [
       format(new Date(sale.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
-      sale.multitrack?.song_name || 'N/A',
-      sale.multitrack?.artist_name || 'N/A',
+      sale.multitrack?.song_name || (sale.bundle ? `[Kit] ${sale.bundle.name}` : 'N/A'),
+      sale.multitrack?.artist_name || '-',
       sale.buyer_email,
       Number(sale.amount).toFixed(2).replace('.', ','),
       (statusLabels[sale.payment_status] || statusLabels.pending).label,
@@ -482,10 +482,10 @@ export default function AdminSales() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                            {sale.multitrack?.cover_url ? (
+                            {(sale.multitrack?.cover_url || sale.bundle?.cover_url) ? (
                               <img
-                                src={sale.multitrack.cover_url}
-                                alt={sale.multitrack.song_name}
+                                src={sale.multitrack?.cover_url || sale.bundle?.cover_url || ''}
+                                alt={sale.multitrack?.song_name || sale.bundle?.name || ''}
                                 className="h-full w-full object-cover rounded"
                               />
                             ) : (
@@ -493,9 +493,11 @@ export default function AdminSales() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{sale.multitrack?.song_name || 'N/A'}</p>
+                            <p className="font-medium truncate">
+                              {sale.multitrack?.song_name || sale.bundle?.name || 'N/A'}
+                            </p>
                             <p className="text-sm text-muted-foreground truncate">
-                              {sale.multitrack?.artist_name || 'N/A'}
+                              {sale.multitrack?.artist_name || (sale.bundle ? 'Kit' : 'N/A')}
                             </p>
                           </div>
                         </div>

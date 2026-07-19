@@ -10,7 +10,8 @@ export function useSales() {
         .from('sales')
         .select(`
           *,
-          multitrack:multitracks(*)
+          multitrack:multitracks(*),
+          bundle:bundles(*)
         `)
         .order('created_at', { ascending: false });
       

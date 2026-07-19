@@ -32,6 +32,75 @@ export type Database = {
         }
         Relationships: []
       }
+      bundles: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bundle_items: {
+        Row: {
+          bundle_id: string
+          created_at: string
+          id: string
+          multitrack_id: string
+        }
+        Insert: {
+          bundle_id: string
+          created_at?: string
+          id?: string
+          multitrack_id: string
+        }
+        Update: {
+          bundle_id?: string
+          created_at?: string
+          id?: string
+          multitrack_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bundle_items_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bundle_items_multitrack_id_fkey"
+            columns: ["multitrack_id"]
+            isOneToOne: false
+            referencedRelation: "multitracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       multitracks: {
         Row: {
           artist_name: string
@@ -72,6 +141,7 @@ export type Database = {
         Row: {
           amount: number
           asaas_fee: number | null
+          bundle_id: string | null
           buyer_email: string
           coupon_id: string | null
           created_at: string
@@ -79,7 +149,7 @@ export type Database = {
           download_expires_at: string | null
           download_token: string | null
           id: string
-          multitrack_id: string
+          multitrack_id: string | null
           net_amount: number | null
           payment_id: string | null
           payment_status: string
@@ -87,6 +157,7 @@ export type Database = {
         Insert: {
           amount: number
           asaas_fee?: number | null
+          bundle_id?: string | null
           buyer_email: string
           coupon_id?: string | null
           created_at?: string
@@ -94,7 +165,7 @@ export type Database = {
           download_expires_at?: string | null
           download_token?: string | null
           id?: string
-          multitrack_id: string
+          multitrack_id?: string | null
           net_amount?: number | null
           payment_id?: string | null
           payment_status?: string
@@ -102,6 +173,7 @@ export type Database = {
         Update: {
           amount?: number
           asaas_fee?: number | null
+          bundle_id?: string | null
           buyer_email?: string
           coupon_id?: string | null
           created_at?: string
@@ -109,7 +181,7 @@ export type Database = {
           download_expires_at?: string | null
           download_token?: string | null
           id?: string
-          multitrack_id?: string
+          multitrack_id?: string | null
           net_amount?: number | null
           payment_id?: string | null
           payment_status?: string
@@ -120,6 +192,13 @@ export type Database = {
             columns: ["multitrack_id"]
             isOneToOne: false
             referencedRelation: "multitracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "bundles"
             referencedColumns: ["id"]
           },
         ]

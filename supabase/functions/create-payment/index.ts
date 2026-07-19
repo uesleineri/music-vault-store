@@ -4,7 +4,9 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 import { validateCoupon } from "../_shared/coupons.ts";
 
 interface CreatePaymentRequest {
-  multitrack_id: string;
+  // Exactly one of these two must be sent - a sale is for one multitrack or one bundle.
+  multitrack_id?: string;
+  bundle_id?: string;
   buyer_name: string;
   buyer_email: string;
   buyer_cpf: string;
@@ -42,33 +44,60 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { multitrack_id, buyer_name, buyer_email, buyer_cpf, buyer_phone, coupon_code }: CreatePaymentRequest = await req.json();
+    const { multitrack_id, bundle_id, buyer_name, buyer_email, buyer_cpf, buyer_phone, coupon_code }: CreatePaymentRequest = await req.json();
 
-    // Never trust a price from the client - look up the real, current price
-    // for this multitrack so a tampered request can't buy it for less.
-    const { data: multitrack, error: multitrackError } = await supabase
-      .from("multitracks")
-      .select("artist_name, song_name, price, is_active")
-      .eq("id", multitrack_id)
-      .single();
-
-    if (multitrackError || !multitrack || !multitrack.is_active) {
+    if (!multitrack_id === !bundle_id) {
       return new Response(
-        JSON.stringify({ error: "Produto não encontrado ou indisponível" }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "Envie exatamente um de multitrack_id ou bundle_id" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    let amount = multitrack.price;
+    // Never trust a price from the client - look up the real, current price
+    // for this multitrack/bundle so a tampered request can't buy it for less.
+    let basePrice: number;
+    let productName: string;
+    if (multitrack_id) {
+      const { data: multitrack, error: multitrackError } = await supabase
+        .from("multitracks")
+        .select("artist_name, song_name, price, is_active")
+        .eq("id", multitrack_id)
+        .single();
+
+      if (multitrackError || !multitrack || !multitrack.is_active) {
+        return new Response(
+          JSON.stringify({ error: "Produto não encontrado ou indisponível" }),
+          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      basePrice = multitrack.price;
+      productName = `${multitrack.artist_name} - ${multitrack.song_name}`;
+    } else {
+      const { data: bundle, error: bundleError } = await supabase
+        .from("bundles")
+        .select("name, price, is_active")
+        .eq("id", bundle_id)
+        .single();
+
+      if (bundleError || !bundle || !bundle.is_active) {
+        return new Response(
+          JSON.stringify({ error: "Kit não encontrado ou indisponível" }),
+          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      basePrice = bundle.price;
+      productName = bundle.name;
+    }
+
+    let amount = basePrice;
     let discountAmount = 0;
     let couponId: string | null = null;
-    const multitrack_name = `${multitrack.artist_name} - ${multitrack.song_name}`;
 
     // Re-validate the coupon here too (never trust the discount the checkout
     // page previewed via validate-coupon) and reserve it atomically so two
     // simultaneous checkouts can't both use the last redemption.
     if (coupon_code) {
-      const couponResult = await validateCoupon(supabase, coupon_code, multitrack.price);
+      const couponResult = await validateCoupon(supabase, coupon_code, basePrice);
       if (!couponResult.valid) {
         return new Response(
           JSON.stringify({ error: couponResult.error || "Cupom inválido" }),
@@ -101,7 +130,8 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: sale, error: saleError } = await supabase
       .from("sales")
       .insert({
-        multitrack_id,
+        multitrack_id: multitrack_id ?? null,
+        bundle_id: bundle_id ?? null,
         buyer_email,
         amount,
         coupon_id: couponId,
@@ -171,7 +201,7 @@ const handler = async (req: Request): Promise<Response> => {
       billingType: "PIX", // PIX only
       value: amount,
       dueDate: dueDate.toISOString().split("T")[0],
-      description: `Multitrack: ${multitrack_name}`,
+      description: `${bundle_id ? "Kit" : "Multitrack"}: ${productName}`,
       externalReference: sale.id,
     };
 

@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logAudit } from "../_shared/audit.ts";
+import { getSaleItems } from "../_shared/sale-items.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -52,7 +53,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: sale, error: saleError } = await supabase
       .from("sales")
-      .select(`*, multitrack:multitracks(*)`)
+      .select(`*, multitrack:multitracks(*), bundle:bundles(*)`)
       .eq("id", sale_id)
       .single();
 
@@ -113,7 +114,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from("sales")
       .update({ payment_status: "paid", ...feeFields })
       .eq("id", sale_id)
-      .select(`*, multitrack:multitracks(*)`)
+      .select(`*, multitrack:multitracks(*), bundle:bundles(*)`)
       .single();
 
     if (updateError) throw updateError;
@@ -126,23 +127,20 @@ const handler = async (req: Request): Promise<Response> => {
       targetId: sale_id,
       targetLabel: updatedSale.multitrack
         ? `${updatedSale.multitrack.artist_name} - ${updatedSale.multitrack.song_name} (${updatedSale.buyer_email})`
+        : updatedSale.bundle
+        ? `${updatedSale.bundle.name} (${updatedSale.buyer_email})`
         : updatedSale.buyer_email,
       changes: { old: { payment_status: "pending" }, new: { payment_status: "paid", asaas_status: asaasPayment.status } },
     });
 
-    const driveFileId = updatedSale.multitrack?.file_url;
-    if (driveFileId) {
-      try {
-        const accessToken = await googleDrive.getAccessToken();
-        await googleDrive.shareFileWithUser(
-          driveFileId,
-          updatedSale.buyer_email,
-          accessToken,
-          updatedSale.download_expires_at
-        );
-      } catch (shareError) {
-        console.error("Failed to share Drive file after manual verification:", shareError);
+    try {
+      const items = await getSaleItems(supabase, updatedSale);
+      const accessToken = await googleDrive.getAccessToken();
+      for (const item of items) {
+        await googleDrive.shareFileWithUser(item.file_url, updatedSale.buyer_email, accessToken, updatedSale.download_expires_at);
       }
+    } catch (shareError) {
+      console.error("Failed to share Drive file(s) after manual verification:", shareError);
     }
 
     return new Response(
