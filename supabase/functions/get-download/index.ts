@@ -25,8 +25,9 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Find sale by download token
-    const { data: sale, error: saleError } = await supabase
+    // A download_token is shared by every sales row created in the same
+    // checkout (one for a single-item purchase, several for a cart).
+    const { data: sales, error: saleError } = await supabase
       .from("sales")
       .select(`
         *,
@@ -34,25 +35,26 @@ const handler = async (req: Request): Promise<Response> => {
         bundle:bundles(*)
       `)
       .eq("download_token", token)
-      .eq("payment_status", "paid")
-      .single();
+      .eq("payment_status", "paid");
 
-    if (saleError || !sale) {
+    if (saleError || !sales || sales.length === 0) {
       return new Response(
         JSON.stringify({ error: "Download não encontrado ou pagamento pendente" }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Check if download link has expired
-    if (sale.download_expires_at && new Date(sale.download_expires_at) < new Date()) {
+    // Every row in the group was created together and shares the same expiry.
+    const [firstSale] = sales;
+    if (firstSale.download_expires_at && new Date(firstSale.download_expires_at) < new Date()) {
       return new Response(
         JSON.stringify({ error: "Link de download expirado" }),
         { status: 410, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    const items = await getSaleItems(supabase, sale);
+    const itemsBySale = await Promise.all(sales.map((sale: any) => getSaleItems(supabase, sale)));
+    const items = itemsBySale.flat();
     if (items.length === 0) {
       return new Response(
         JSON.stringify({ error: "Arquivo não encontrado" }),
@@ -62,13 +64,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     const accessToken = await googleDrive.getAccessToken();
 
-    // For every file in the sale (one for a single multitrack, several for a
-    // bundle): make sure the buyer has read access even if the webhook's
-    // share call hasn't landed yet, then fetch its download link.
+    // For every file across every item in the group: make sure the buyer has
+    // read access even if the webhook's share call hasn't landed yet, then
+    // fetch its download link.
     const files = await Promise.all(
       items.map(async (item) => {
         try {
-          await googleDrive.shareFileWithUser(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
+          await googleDrive.shareFileWithUser(item.file_url, firstSale.buyer_email, accessToken, firstSale.download_expires_at);
         } catch (shareError) {
           console.error("Non-fatal: failed to (re)share Drive file:", shareError);
         }
@@ -84,7 +86,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     return new Response(
       JSON.stringify({
-        product_name: sale.bundle?.name ?? null,
+        product_name: sales.length === 1 ? (firstSale.bundle?.name ?? null) : null,
         files,
       }),
       {

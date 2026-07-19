@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { CartProvider } from "@/contexts/CartContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
@@ -17,6 +18,8 @@ import Checkout from "@/pages/Checkout";
 import Kits from "@/pages/Kits";
 import KitDetails from "@/pages/KitDetails";
 import KitCheckout from "@/pages/KitCheckout";
+import Cart from "@/pages/Cart";
+import CartCheckout from "@/pages/CartCheckout";
 import DownloadPage from "@/pages/DownloadPage";
 import NotFound from "@/pages/NotFound";
 
@@ -36,6 +39,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <ThemeProvider>
     <QueryClientProvider client={queryClient}>
+      <CartProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -50,6 +54,8 @@ const App = () => (
             <Route path="/kits" element={<Kits />} />
             <Route path="/kit/:id" element={<KitDetails />} />
             <Route path="/checkout/kit/:id" element={<KitCheckout />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<CartCheckout />} />
           </Route>
 
           {/* Download page (no layout) */}
@@ -73,6 +79,7 @@ const App = () => (
         </Routes>
         </BrowserRouter>
       </TooltipProvider>
+      </CartProvider>
     </QueryClientProvider>
   </ThemeProvider>
 );

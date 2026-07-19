@@ -82,7 +82,7 @@ export default function Checkout() {
     setIsCheckingCoupon(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-coupon', {
-        body: { code: couponCode.trim(), multitrack_id: multitrack.id },
+        body: { code: couponCode.trim(), items: [{ multitrack_id: multitrack.id }] },
       });
       if (error) throw error;
 
@@ -157,7 +157,7 @@ export default function Checkout() {
     try {
       const { data, error } = await supabase.functions.invoke('create-payment', {
         body: {
-          multitrack_id: multitrack.id,
+          items: [{ multitrack_id: multitrack.id }],
           buyer_name: name.trim(),
           buyer_email: email,
           buyer_cpf: cpfNumbers,

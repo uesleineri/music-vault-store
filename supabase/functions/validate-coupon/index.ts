@@ -18,43 +18,41 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { code, multitrack_id, bundle_id } = await req.json();
-    if (!code || (!multitrack_id && !bundle_id)) {
-      return new Response(JSON.stringify({ valid: false, error: "code e multitrack_id ou bundle_id são obrigatórios" }), {
+    const { code, items } = await req.json();
+    if (!code || !Array.isArray(items) || items.length === 0) {
+      return new Response(JSON.stringify({ valid: false, error: "code e items são obrigatórios" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    let price: number;
-    if (multitrack_id) {
-      const { data: multitrack, error: mtError } = await supabase
-        .from("multitracks")
-        .select("price, is_active")
-        .eq("id", multitrack_id)
-        .single();
+    const multitrackIds = items.map((i: any) => i.multitrack_id).filter(Boolean);
+    const bundleIds = items.map((i: any) => i.bundle_id).filter(Boolean);
 
-      if (mtError || !multitrack || !multitrack.is_active) {
-        return new Response(JSON.stringify({ valid: false, error: "Produto não encontrado" }), {
+    const [{ data: multitracks, error: mtError }, { data: bundles, error: bundleError }] = await Promise.all([
+      multitrackIds.length > 0
+        ? supabase.from("multitracks").select("id, price, is_active").in("id", multitrackIds)
+        : Promise.resolve({ data: [], error: null }),
+      bundleIds.length > 0
+        ? supabase.from("bundles").select("id, price, is_active").in("id", bundleIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (mtError) throw mtError;
+    if (bundleError) throw bundleError;
+
+    const multitrackById = new Map((multitracks ?? []).map((m: any) => [m.id, m]));
+    const bundleById = new Map((bundles ?? []).map((b: any) => [b.id, b]));
+
+    let price = 0;
+    for (const item of items) {
+      const product = item.multitrack_id ? multitrackById.get(item.multitrack_id) : bundleById.get(item.bundle_id);
+      if (!product || !product.is_active) {
+        return new Response(JSON.stringify({ valid: false, error: "Um dos itens do carrinho não foi encontrado" }), {
           status: 404,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
-      price = multitrack.price;
-    } else {
-      const { data: bundle, error: bundleError } = await supabase
-        .from("bundles")
-        .select("price, is_active")
-        .eq("id", bundle_id)
-        .single();
-
-      if (bundleError || !bundle || !bundle.is_active) {
-        return new Response(JSON.stringify({ valid: false, error: "Kit não encontrado" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      price = bundle.price;
+      price += Number(product.price);
     }
 
     const result = await validateCoupon(supabase, code, price);

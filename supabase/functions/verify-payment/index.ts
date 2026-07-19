@@ -4,6 +4,7 @@ import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
+import { distributeFee, describeGroup } from "../_shared/checkout-group.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -101,23 +102,29 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Same value/netValue fields Asaas sends on the webhook payload are also
-    // present on this GET response - capture them here too, since a sale can be
-    // confirmed via manual verification instead of the webhook.
-    const grossValue = asaasPayment.value;
-    const netValue = asaasPayment.netValue;
-    const feeFields = typeof grossValue === "number" && typeof netValue === "number"
-      ? { asaas_fee: grossValue - netValue, net_amount: netValue }
-      : {};
-
-    const { data: updatedSale, error: updateError } = await supabase
+    // Update every sales row in this checkout group (one for a single-item
+    // purchase, several for a cart) - they all share this same payment_id.
+    const { data: updatedSales, error: updateError } = await supabase
       .from("sales")
-      .update({ payment_status: "paid", ...feeFields })
-      .eq("id", sale_id)
-      .select(`*, multitrack:multitracks(*), bundle:bundles(*)`)
-      .single();
+      .update({ payment_status: "paid" })
+      .eq("checkout_group_id", sale.checkout_group_id)
+      .select(`*, multitrack:multitracks(*), bundle:bundles(*)`);
 
     if (updateError) throw updateError;
+
+    // Same value/netValue fields Asaas sends on the webhook payload are also
+    // present on this GET response - split them across the group here too,
+    // since a sale can be confirmed via manual verification instead of the webhook.
+    const grossValue = asaasPayment.value;
+    const netValue = asaasPayment.netValue;
+    if (typeof grossValue === "number" && typeof netValue === "number") {
+      const feeUpdates = distributeFee(updatedSales, grossValue, netValue);
+      await Promise.all(
+        feeUpdates.map((update) =>
+          supabase.from("sales").update({ asaas_fee: update.asaas_fee, net_amount: update.net_amount }).eq("id", update.id)
+        )
+      );
+    }
 
     await logAudit(supabase, req, {
       actorId: user.id,
@@ -125,26 +132,24 @@ const handler = async (req: Request): Promise<Response> => {
       action: "sale.verify_payment",
       targetType: "sale",
       targetId: sale_id,
-      targetLabel: updatedSale.multitrack
-        ? `${updatedSale.multitrack.artist_name} - ${updatedSale.multitrack.song_name} (${updatedSale.buyer_email})`
-        : updatedSale.bundle
-        ? `${updatedSale.bundle.name} (${updatedSale.buyer_email})`
-        : updatedSale.buyer_email,
+      targetLabel: `${describeGroup(updatedSales)} (${sale.buyer_email})`,
       changes: { old: { payment_status: "pending" }, new: { payment_status: "paid", asaas_status: asaasPayment.status } },
     });
 
     try {
-      const items = await getSaleItems(supabase, updatedSale);
       const accessToken = await googleDrive.getAccessToken();
-      for (const item of items) {
-        await googleDrive.shareFileWithUser(item.file_url, updatedSale.buyer_email, accessToken, updatedSale.download_expires_at);
+      for (const updatedSale of updatedSales) {
+        const items = await getSaleItems(supabase, updatedSale);
+        for (const item of items) {
+          await googleDrive.shareFileWithUser(item.file_url, updatedSale.buyer_email, accessToken, updatedSale.download_expires_at);
+        }
       }
     } catch (shareError) {
       console.error("Failed to share Drive file(s) after manual verification:", shareError);
     }
 
     return new Response(
-      JSON.stringify({ confirmed: true, asaas_status: asaasPayment.status, sale: updatedSale }),
+      JSON.stringify({ confirmed: true, asaas_status: asaasPayment.status, sale: updatedSales.find((s: any) => s.id === sale_id) }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {

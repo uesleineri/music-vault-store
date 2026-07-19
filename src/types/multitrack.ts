@@ -35,6 +35,9 @@ export interface Sale {
   // Exactly one of these two is set - a sale is either for one multitrack or one bundle.
   multitrack_id: string | null;
   bundle_id: string | null;
+  // Sales rows created in the same checkout (a cart with several items, one
+  // PIX payment) share this id - a single-item purchase is a group of one.
+  checkout_group_id: string;
   buyer_email: string;
   amount: number;
   payment_status: 'pending' | 'paid' | 'failed';

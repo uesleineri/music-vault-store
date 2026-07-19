@@ -3,15 +3,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { validateCoupon } from "../_shared/coupons.ts";
 
-interface CreatePaymentRequest {
-  // Exactly one of these two must be sent - a sale is for one multitrack or one bundle.
+interface CartItemRequest {
+  // Exactly one of these two must be sent per item.
   multitrack_id?: string;
   bundle_id?: string;
+}
+
+interface CreatePaymentRequest {
+  items: CartItemRequest[];
   buyer_name: string;
   buyer_email: string;
   buyer_cpf: string;
   buyer_phone: string;
   coupon_code?: string;
+}
+
+interface ResolvedItem {
+  multitrack_id: string | null;
+  bundle_id: string | null;
+  name: string;
+  price: number;
 }
 
 // Masks PII (CPF, phone, email) before it ever reaches the Edge Function logs.
@@ -44,60 +55,83 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { multitrack_id, bundle_id, buyer_name, buyer_email, buyer_cpf, buyer_phone, coupon_code }: CreatePaymentRequest = await req.json();
+    const { items, buyer_name, buyer_email, buyer_cpf, buyer_phone, coupon_code }: CreatePaymentRequest = await req.json();
 
-    if (!multitrack_id === !bundle_id) {
+    if (!Array.isArray(items) || items.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Envie exatamente um de multitrack_id ou bundle_id" }),
+        JSON.stringify({ error: "O carrinho está vazio" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    if (items.some((item) => !item.multitrack_id === !item.bundle_id)) {
+      return new Response(
+        JSON.stringify({ error: "Cada item precisa ter exatamente um de multitrack_id ou bundle_id" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Never trust a price from the client - look up the real, current price
-    // for this multitrack/bundle so a tampered request can't buy it for less.
-    let basePrice: number;
-    let productName: string;
-    if (multitrack_id) {
-      const { data: multitrack, error: multitrackError } = await supabase
-        .from("multitracks")
-        .select("artist_name, song_name, price, is_active")
-        .eq("id", multitrack_id)
-        .single();
+    // Never trust prices from the client - look up the real, current price of
+    // every item so a tampered request can't buy anything for less.
+    const multitrackIds = items.map((i) => i.multitrack_id).filter((id): id is string => !!id);
+    const bundleIds = items.map((i) => i.bundle_id).filter((id): id is string => !!id);
 
-      if (multitrackError || !multitrack || !multitrack.is_active) {
-        return new Response(
-          JSON.stringify({ error: "Produto não encontrado ou indisponível" }),
-          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
-      basePrice = multitrack.price;
-      productName = `${multitrack.artist_name} - ${multitrack.song_name}`;
-    } else {
-      const { data: bundle, error: bundleError } = await supabase
-        .from("bundles")
-        .select("name, price, is_active")
-        .eq("id", bundle_id)
-        .single();
+    const [{ data: multitracks, error: mtError }, { data: bundles, error: bundleError }] = await Promise.all([
+      multitrackIds.length > 0
+        ? supabase.from("multitracks").select("id, artist_name, song_name, price, is_active").in("id", multitrackIds)
+        : Promise.resolve({ data: [], error: null }),
+      bundleIds.length > 0
+        ? supabase.from("bundles").select("id, name, price, is_active").in("id", bundleIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (mtError) throw mtError;
+    if (bundleError) throw bundleError;
 
-      if (bundleError || !bundle || !bundle.is_active) {
-        return new Response(
-          JSON.stringify({ error: "Kit não encontrado ou indisponível" }),
-          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
+    const multitrackById = new Map((multitracks ?? []).map((m: any) => [m.id, m]));
+    const bundleById = new Map((bundles ?? []).map((b: any) => [b.id, b]));
+
+    const resolvedItems: ResolvedItem[] = [];
+    for (const item of items) {
+      if (item.multitrack_id) {
+        const mt = multitrackById.get(item.multitrack_id);
+        if (!mt || !mt.is_active) {
+          return new Response(
+            JSON.stringify({ error: "Um dos produtos do carrinho não está mais disponível" }),
+            { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+        resolvedItems.push({
+          multitrack_id: mt.id,
+          bundle_id: null,
+          name: `${mt.artist_name} - ${mt.song_name}`,
+          price: Number(mt.price),
+        });
+      } else {
+        const bundle = bundleById.get(item.bundle_id);
+        if (!bundle || !bundle.is_active) {
+          return new Response(
+            JSON.stringify({ error: "Um dos kits do carrinho não está mais disponível" }),
+            { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+        resolvedItems.push({
+          multitrack_id: null,
+          bundle_id: bundle.id,
+          name: bundle.name,
+          price: Number(bundle.price),
+        });
       }
-      basePrice = bundle.price;
-      productName = bundle.name;
     }
 
-    let amount = basePrice;
-    let discountAmount = 0;
+    const totalPrice = resolvedItems.reduce((sum, item) => sum + item.price, 0);
+    let totalAmount = totalPrice;
+    let totalDiscount = 0;
     let couponId: string | null = null;
 
     // Re-validate the coupon here too (never trust the discount the checkout
     // page previewed via validate-coupon) and reserve it atomically so two
     // simultaneous checkouts can't both use the last redemption.
     if (coupon_code) {
-      const couponResult = await validateCoupon(supabase, coupon_code, basePrice);
+      const couponResult = await validateCoupon(supabase, coupon_code, totalPrice);
       if (!couponResult.valid) {
         return new Response(
           JSON.stringify({ error: couponResult.error || "Cupom inválido" }),
@@ -116,34 +150,50 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
-      amount = couponResult.finalPrice!;
-      discountAmount = couponResult.discountAmount!;
+      totalAmount = couponResult.finalPrice!;
+      totalDiscount = couponResult.discountAmount!;
       couponId = couponResult.coupon.id;
     }
 
-    // Generate unique download token
+    // Split the coupon discount across items proportionally to their price,
+    // so each sales row still reports its own real amount/discount - the last
+    // item absorbs the rounding remainder so the split sums exactly.
+    let allocatedDiscount = 0;
+    const itemsWithAmount = resolvedItems.map((item, index) => {
+      let discount: number;
+      if (index === resolvedItems.length - 1) {
+        discount = Math.round((totalDiscount - allocatedDiscount) * 100) / 100;
+      } else {
+        discount = Math.round((totalDiscount * (item.price / totalPrice)) * 100) / 100;
+        allocatedDiscount += discount;
+      }
+      return { ...item, discount, amount: Math.round((item.price - discount) * 100) / 100 };
+    });
+
+    const checkoutGroupId = crypto.randomUUID();
     const downloadToken = crypto.randomUUID();
     const downloadExpiresAt = new Date();
     downloadExpiresAt.setHours(downloadExpiresAt.getHours() + 48); // 48 hours expiration
 
-    // Create sale record first
-    const { data: sale, error: saleError } = await supabase
+    const { data: sales, error: salesError } = await supabase
       .from("sales")
-      .insert({
-        multitrack_id: multitrack_id ?? null,
-        bundle_id: bundle_id ?? null,
-        buyer_email,
-        amount,
-        coupon_id: couponId,
-        discount_amount: discountAmount,
-        payment_status: "pending",
-        download_token: downloadToken,
-        download_expires_at: downloadExpiresAt.toISOString(),
-      })
-      .select()
-      .single();
+      .insert(
+        itemsWithAmount.map((item) => ({
+          checkout_group_id: checkoutGroupId,
+          multitrack_id: item.multitrack_id,
+          bundle_id: item.bundle_id,
+          buyer_email,
+          amount: item.amount,
+          coupon_id: couponId,
+          discount_amount: item.discount,
+          payment_status: "pending",
+          download_token: downloadToken,
+          download_expires_at: downloadExpiresAt.toISOString(),
+        }))
+      )
+      .select();
 
-    if (saleError) throw saleError;
+    if (salesError) throw salesError;
 
     // Create Asaas customer (or find existing)
     const customerBody = {
@@ -152,7 +202,7 @@ const handler = async (req: Request): Promise<Response> => {
       cpfCnpj: buyer_cpf,
       mobilePhone: buyer_phone,
     };
-    
+
     console.log("Creating customer with body:", JSON.stringify(redactPII(customerBody)));
 
     const customerResponse = await fetch("https://api.asaas.com/v3/customers", {
@@ -192,17 +242,22 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to create/find customer");
     }
 
-    // Create Asaas PIX payment
+    // Create Asaas PIX payment - one payment for the whole cart.
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1); // Due tomorrow
+
+    const description =
+      resolvedItems.length === 1
+        ? resolvedItems[0].name
+        : `${resolvedItems[0].name} e mais ${resolvedItems.length - 1} item(ns)`;
 
     const paymentBody = {
       customer: customer.id,
       billingType: "PIX", // PIX only
-      value: amount,
+      value: totalAmount,
       dueDate: dueDate.toISOString().split("T")[0],
-      description: `${bundle_id ? "Kit" : "Multitrack"}: ${productName}`,
-      externalReference: sale.id,
+      description,
+      externalReference: checkoutGroupId,
     };
 
     console.log("Creating PIX payment with body:", JSON.stringify(paymentBody));
@@ -224,11 +279,11 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Failed to create payment: ${JSON.stringify(payment)}`);
     }
 
-    // Update sale with payment ID
+    // Update every row in the group with the same payment ID
     await supabase
       .from("sales")
       .update({ payment_id: payment.id })
-      .eq("id", sale.id);
+      .eq("checkout_group_id", checkoutGroupId);
 
     // Get PIX QR Code
     const pixResponse = await fetch(
@@ -237,17 +292,17 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { "access_token": asaasApiKey },
       }
     );
-    
+
     const pixData = await pixResponse.json();
     console.log("PIX QR Code response:", JSON.stringify(pixData));
 
     return new Response(
       JSON.stringify({
         success: true,
-        sale_id: sale.id,
+        sale_id: checkoutGroupId,
         payment_id: payment.id,
-        amount,
-        discount_amount: discountAmount,
+        amount: totalAmount,
+        discount_amount: totalDiscount,
         pix_qr_code_image: pixData.encodedImage, // Base64 image
         pix_copy_paste: pixData.payload, // Copy-paste code
         pix_expiration: pixData.expirationDate,

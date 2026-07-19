@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
+import { distributeFee, describeGroup } from "../_shared/checkout-group.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   try {
@@ -32,57 +33,67 @@ const handler = async (req: Request): Promise<Response> => {
         return new Response("OK", { status: 200 });
       }
 
-      // Asaas' PIX payment object includes value/netValue (netValue = value minus
-      // the Asaas fee) - capture it now since this payload won't be seen again.
-      const grossValue = payload.payment?.value;
-      const netValue = payload.payment?.netValue;
-      const feeFields = typeof grossValue === "number" && typeof netValue === "number"
-        ? { asaas_fee: grossValue - netValue, net_amount: netValue }
-        : {};
-
-      // Update sale status
-      const { data: sale, error: updateError } = await supabase
+      // Update every sales row in this checkout group (one for a single-item
+      // purchase, several for a cart) to paid.
+      const { data: sales, error: updateError } = await supabase
         .from("sales")
-        .update({ payment_status: "paid", ...feeFields })
-        .eq("id", externalReference)
+        .update({ payment_status: "paid" })
+        .eq("checkout_group_id", externalReference)
         .select(`
           *,
           multitrack:multitracks(*),
           bundle:bundles(*)
-        `)
-        .single();
+        `);
 
       if (updateError) {
-        console.error("Error updating sale:", updateError);
+        console.error("Error updating sales:", updateError);
         throw updateError;
       }
+      if (!sales || sales.length === 0) {
+        console.log("No sales found for checkout group, skipping:", externalReference);
+        return new Response("OK", { status: 200 });
+      }
 
-      console.log("Sale updated to paid:", sale.id);
+      console.log(`${sales.length} sale(s) updated to paid for group:`, externalReference);
 
+      // Asaas' PIX payment object includes value/netValue (netValue = value
+      // minus the Asaas fee) for the whole payment - split it across the
+      // group's rows proportionally so per-sale reporting still adds up.
+      const grossValue = payload.payment?.value;
+      const netValue = payload.payment?.netValue;
+      if (typeof grossValue === "number" && typeof netValue === "number") {
+        const feeUpdates = distributeFee(sales, grossValue, netValue);
+        await Promise.all(
+          feeUpdates.map((update) =>
+            supabase.from("sales").update({ asaas_fee: update.asaas_fee, net_amount: update.net_amount }).eq("id", update.id)
+          )
+        );
+      }
+
+      const buyerEmail = sales[0].buyer_email;
       await logAudit(supabase, req, {
         actorId: null,
         actorEmail: "webhook Asaas",
         action: "sale.payment_confirmed",
         targetType: "sale",
-        targetId: sale.id,
-        targetLabel: sale.multitrack
-          ? `${sale.multitrack.artist_name} - ${sale.multitrack.song_name} (${sale.buyer_email})`
-          : sale.bundle
-          ? `${sale.bundle.name} (${sale.buyer_email})`
-          : sale.buyer_email,
+        targetId: sales[0].id,
+        targetLabel: `${describeGroup(sales)} (${buyerEmail})`,
         changes: { old: { payment_status: "pending" }, new: { payment_status: "paid" } },
       });
 
-      // Grant the buyer access to every file in the sale (one for a single
-      // multitrack, several for a bundle) - Google sends its own "shared with
-      // you" notification email automatically for each.
+      // Grant the buyer access to every file across every item in the group -
+      // Google sends its own "shared with you" notification email automatically for each.
       try {
-        const items = await getSaleItems(supabase, sale);
         const accessToken = await googleDrive.getAccessToken();
-        for (const item of items) {
-          await googleDrive.shareFileWithUser(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
+        let sharedCount = 0;
+        for (const sale of sales) {
+          const items = await getSaleItems(supabase, sale);
+          for (const item of items) {
+            await googleDrive.shareFileWithUser(item.file_url, buyerEmail, accessToken, sale.download_expires_at);
+            sharedCount++;
+          }
         }
-        console.log(`Shared ${items.length} Drive file(s) with buyer:`, sale.buyer_email);
+        console.log(`Shared ${sharedCount} Drive file(s) with buyer:`, buyerEmail);
       } catch (shareError) {
         // Don't fail the webhook (Asaas would retry) if sharing hiccups -
         // get-download retries the share as a fallback when the buyer opens the link.
@@ -92,28 +103,25 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (payload.event === "PAYMENT_OVERDUE" || payload.event === "PAYMENT_DELETED") {
       const externalReference = payload.payment?.externalReference;
-      
+
       if (externalReference) {
-        const { data: failedSale } = await supabase
+        const { data: failedSales } = await supabase
           .from("sales")
           .update({ payment_status: "failed" })
-          .eq("id", externalReference)
-          .select(`*, multitrack:multitracks(*), bundle:bundles(*)`)
-          .single();
+          .eq("checkout_group_id", externalReference)
+          .select(`*, multitrack:multitracks(*), bundle:bundles(*)`);
 
-        await logAudit(supabase, req, {
-          actorId: null,
-          actorEmail: "webhook Asaas",
-          action: "sale.payment_failed",
-          targetType: "sale",
-          targetId: externalReference,
-          targetLabel: failedSale?.multitrack
-            ? `${failedSale.multitrack.artist_name} - ${failedSale.multitrack.song_name} (${failedSale.buyer_email})`
-            : failedSale?.bundle
-            ? `${failedSale.bundle.name} (${failedSale.buyer_email})`
-            : failedSale?.buyer_email ?? null,
-          changes: { new: { payment_status: "failed", asaas_event: payload.event } },
-        });
+        if (failedSales && failedSales.length > 0) {
+          await logAudit(supabase, req, {
+            actorId: null,
+            actorEmail: "webhook Asaas",
+            action: "sale.payment_failed",
+            targetType: "sale",
+            targetId: failedSales[0].id,
+            targetLabel: `${describeGroup(failedSales)} (${failedSales[0].buyer_email})`,
+            changes: { new: { payment_status: "failed", asaas_event: payload.event } },
+          });
+        }
       }
     }
 

@@ -1,13 +1,34 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Music, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Music, ShoppingCart, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { useMultitrack } from '@/hooks/useMultitracks';
+import { useCart } from '@/contexts/CartContext';
+import { useToast } from '@/hooks/use-toast';
 
 export default function MultitrackDetails() {
   const { id } = useParams<{ id: string }>();
   const { data: multitrack, isLoading } = useMultitrack(id || '');
+  const { addItem } = useCart();
+  const { toast } = useToast();
+
+  const handleAddToCart = () => {
+    if (!multitrack) return;
+    const added = addItem({
+      type: 'multitrack',
+      id: multitrack.id,
+      name: multitrack.song_name,
+      subtitle: multitrack.artist_name,
+      price: multitrack.price,
+      cover_url: multitrack.cover_url,
+    });
+    toast(
+      added
+        ? { title: 'Adicionado ao carrinho!' }
+        : { title: 'Já está no carrinho', description: 'Essa multitrack já foi adicionada.' }
+    );
+  };
 
   if (isLoading) {
     return (
@@ -83,12 +104,18 @@ export default function MultitrackDetails() {
             <div className="text-3xl font-bold mb-4">
               R$ {multitrack.price.toFixed(2).replace('.', ',')}
             </div>
-            <Link to={`/checkout/${multitrack.id}`}>
-              <Button size="lg" className="w-full md:w-auto gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Comprar agora
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link to={`/checkout/${multitrack.id}`}>
+                <Button size="lg" className="w-full sm:w-auto gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Comprar agora
+                </Button>
+              </Link>
+              <Button size="lg" variant="outline" className="w-full sm:w-auto gap-2" onClick={handleAddToCart}>
+                <Plus className="h-5 w-5" />
+                Adicionar ao carrinho
               </Button>
-            </Link>
+            </div>
           </div>
 
           <p className="text-sm text-muted-foreground mt-6">

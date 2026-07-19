@@ -1,17 +1,16 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Package, Loader2, Copy, Check, QrCode, Tag, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Music, Package, Loader2, Copy, Check, QrCode, Tag, X, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useBundle } from '@/hooks/useBundles';
+import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-export default function KitCheckout() {
-  const { id } = useParams<{ id: string }>();
-  const { data: bundle, isLoading } = useBundle(id || '');
+export default function CartCheckout() {
+  const { items, totalPrice, clear } = useCart();
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -29,6 +28,10 @@ export default function KitCheckout() {
   const [couponCode, setCouponCode] = useState('');
   const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number; finalPrice: number } | null>(null);
+
+  const cartItemsPayload = items.map((item) =>
+    item.type === 'multitrack' ? { multitrack_id: item.id } : { bundle_id: item.id }
+  );
 
   const formatCpf = (value: string) => {
     const numbers = value.replace(/\D/g, '').slice(0, 11);
@@ -66,11 +69,11 @@ export default function KitCheckout() {
   };
 
   const handleApplyCoupon = async () => {
-    if (!couponCode.trim() || !bundle) return;
+    if (!couponCode.trim() || items.length === 0) return;
     setIsCheckingCoupon(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-coupon', {
-        body: { code: couponCode.trim(), items: [{ bundle_id: bundle.id }] },
+        body: { code: couponCode.trim(), items: cartItemsPayload },
       });
       if (error) throw error;
 
@@ -109,7 +112,7 @@ export default function KitCheckout() {
       return;
     }
 
-    if (!email || !bundle) {
+    if (!email || items.length === 0) {
       toast({
         title: 'Email obrigatório',
         description: 'Por favor, informe seu email para receber o link de download.',
@@ -133,7 +136,7 @@ export default function KitCheckout() {
     try {
       const { data, error } = await supabase.functions.invoke('create-payment', {
         body: {
-          items: [{ bundle_id: bundle.id }],
+          items: cartItemsPayload,
           buyer_name: name.trim(),
           buyer_email: email,
           buyer_cpf: cpfNumbers,
@@ -152,6 +155,8 @@ export default function KitCheckout() {
           expiration: data.pix_expiration,
           amount: data.amount,
         });
+        // The order is placed - clear the cart now so a refresh/back doesn't re-checkout the same items.
+        clear();
         toast({ title: 'PIX gerado!', description: 'Escaneie o QR Code ou copie o código para pagar.' });
       }
     } catch (error: any) {
@@ -162,24 +167,13 @@ export default function KitCheckout() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="container py-8 max-w-2xl">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-32" />
-          <div className="h-64 bg-muted rounded" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!bundle) {
+  if (items.length === 0 && !pixData) {
     return (
       <div className="container py-8 text-center">
-        <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Kit não encontrado</h1>
-        <Link to="/kits">
-          <Button>Voltar aos kits</Button>
+        <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Seu carrinho está vazio</h1>
+        <Link to="/catalog">
+          <Button>Voltar ao catálogo</Button>
         </Link>
       </div>
     );
@@ -204,21 +198,11 @@ export default function KitCheckout() {
         </div>
 
         <Card className="mb-6">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-16 w-16 rounded bg-muted flex items-center justify-center flex-shrink-0">
-              {bundle.cover_url ? (
-                <img src={bundle.cover_url} alt={bundle.name} className="h-full w-full object-cover rounded" />
-              ) : (
-                <Package className="h-8 w-8 text-muted-foreground" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold truncate">{bundle.name}</h3>
-              <p className="text-sm text-muted-foreground truncate">{bundle.items.length} músicas</p>
-            </div>
-            <div className="text-lg font-bold text-primary">
+          <CardContent className="p-4 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Total do pedido</span>
+            <span className="text-lg font-bold text-primary">
               R$ {pixData.amount.toFixed(2).replace('.', ',')}
-            </div>
+            </span>
           </CardContent>
         </Card>
 
@@ -257,8 +241,8 @@ export default function KitCheckout() {
           <p className="text-sm text-muted-foreground">
             Após o pagamento, você receberá o link de download no email <strong>{email}</strong>
           </p>
-          <Link to="/kits">
-            <Button variant="outline" className="w-full">Voltar aos kits</Button>
+          <Link to="/catalog">
+            <Button variant="outline" className="w-full">Voltar ao catálogo</Button>
           </Link>
         </div>
       </div>
@@ -267,9 +251,9 @@ export default function KitCheckout() {
 
   return (
     <div className="container py-8 max-w-2xl animate-fade-in">
-      <Link to={`/kit/${bundle.id}`} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8">
+      <Link to="/cart" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8">
         <ArrowLeft className="h-4 w-4" />
-        Voltar
+        Voltar ao carrinho
       </Link>
 
       <div className="grid gap-8">
@@ -277,22 +261,28 @@ export default function KitCheckout() {
           <CardHeader>
             <CardTitle>Resumo do pedido</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="h-20 w-20 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                {bundle.cover_url ? (
-                  <img src={bundle.cover_url} alt={bundle.name} className="h-full w-full object-cover rounded" />
-                ) : (
-                  <Package className="h-10 w-10 text-muted-foreground" />
-                )}
+          <CardContent className="space-y-3">
+            {items.map((item) => (
+              <div key={`${item.type}-${item.id}`} className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                  {item.cover_url ? (
+                    <img src={item.cover_url} alt={item.name} className="h-full w-full object-cover rounded" />
+                  ) : item.type === 'bundle' ? (
+                    <Package className="h-6 w-6 text-muted-foreground" />
+                  ) : (
+                    <Music className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{item.name}</p>
+                  {item.subtitle && <p className="text-sm text-muted-foreground truncate">{item.subtitle}</p>}
+                </div>
+                <div className="font-semibold">R$ {item.price.toFixed(2).replace('.', ',')}</div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold">{bundle.name}</h3>
-                <p className="text-sm text-muted-foreground">{bundle.items.length} músicas</p>
-              </div>
-              <div className="text-xl font-bold">
-                R$ {bundle.price.toFixed(2).replace('.', ',')}
-              </div>
+            ))}
+            <div className="border-t pt-3 flex items-center justify-between text-lg font-bold">
+              <span>Total</span>
+              <span>R$ {totalPrice.toFixed(2).replace('.', ',')}</span>
             </div>
           </CardContent>
         </Card>
@@ -326,7 +316,7 @@ export default function KitCheckout() {
               </div>
 
               <p className="text-sm text-muted-foreground">
-                O link de download de todas as músicas do kit será enviado para este email após a confirmação do pagamento.
+                O link de download de todos os itens do pedido será enviado para este email após a confirmação do pagamento.
               </p>
 
               <div className="space-y-2">
@@ -361,7 +351,7 @@ export default function KitCheckout() {
                   <>
                     <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
                       <span>Subtotal</span>
-                      <span>R$ {bundle.price.toFixed(2).replace('.', ',')}</span>
+                      <span>R$ {totalPrice.toFixed(2).replace('.', ',')}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-success mb-1">
                       <span>Desconto ({appliedCoupon.code})</span>
@@ -370,8 +360,8 @@ export default function KitCheckout() {
                   </>
                 )}
                 <div className="flex items-center justify-between text-lg font-semibold mb-4">
-                  <span>Total</span>
-                  <span>R$ {(appliedCoupon ? appliedCoupon.finalPrice : bundle.price).toFixed(2).replace('.', ',')}</span>
+                  <span>Total a pagar</span>
+                  <span>R$ {(appliedCoupon ? appliedCoupon.finalPrice : totalPrice).toFixed(2).replace('.', ',')}</span>
                 </div>
                 <Button type="submit" size="lg" className="w-full" disabled={isProcessing}>
                   {isProcessing ? (

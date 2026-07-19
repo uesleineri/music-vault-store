@@ -1,12 +1,33 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Package, ShoppingCart, Music } from 'lucide-react';
+import { ArrowLeft, Package, ShoppingCart, Music, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBundle } from '@/hooks/useBundles';
+import { useCart } from '@/contexts/CartContext';
+import { useToast } from '@/hooks/use-toast';
 
 export default function KitDetails() {
   const { id } = useParams<{ id: string }>();
   const { data: bundle, isLoading } = useBundle(id || '');
+  const { addItem } = useCart();
+  const { toast } = useToast();
+
+  const handleAddToCart = () => {
+    if (!bundle) return;
+    const added = addItem({
+      type: 'bundle',
+      id: bundle.id,
+      name: bundle.name,
+      subtitle: `${bundle.items.length} músicas`,
+      price: bundle.price,
+      cover_url: bundle.cover_url,
+    });
+    toast(
+      added
+        ? { title: 'Adicionado ao carrinho!' }
+        : { title: 'Já está no carrinho', description: 'Esse kit já foi adicionado.' }
+    );
+  };
 
   if (isLoading) {
     return (
@@ -85,12 +106,18 @@ export default function KitDetails() {
             <div className="text-3xl font-bold mb-4">
               R$ {bundle.price.toFixed(2).replace('.', ',')}
             </div>
-            <Link to={`/checkout/kit/${bundle.id}`}>
-              <Button size="lg" className="w-full md:w-auto gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Comprar kit
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link to={`/checkout/kit/${bundle.id}`}>
+                <Button size="lg" className="w-full sm:w-auto gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Comprar kit
+                </Button>
+              </Link>
+              <Button size="lg" variant="outline" className="w-full sm:w-auto gap-2" onClick={handleAddToCart}>
+                <Plus className="h-5 w-5" />
+                Adicionar ao carrinho
               </Button>
-            </Link>
+            </div>
           </div>
 
           <p className="text-sm text-muted-foreground mt-6">

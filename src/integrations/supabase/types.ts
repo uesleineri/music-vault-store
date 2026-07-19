@@ -143,6 +143,7 @@ export type Database = {
           asaas_fee: number | null
           bundle_id: string | null
           buyer_email: string
+          checkout_group_id: string
           coupon_id: string | null
           created_at: string
           discount_amount: number
@@ -159,6 +160,7 @@ export type Database = {
           asaas_fee?: number | null
           bundle_id?: string | null
           buyer_email: string
+          checkout_group_id?: string
           coupon_id?: string | null
           created_at?: string
           discount_amount?: number
@@ -175,6 +177,7 @@ export type Database = {
           asaas_fee?: number | null
           bundle_id?: string | null
           buyer_email?: string
+          checkout_group_id?: string
           coupon_id?: string | null
           created_at?: string
           discount_amount?: number

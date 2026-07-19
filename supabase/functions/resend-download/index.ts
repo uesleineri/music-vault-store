@@ -4,6 +4,7 @@ import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
+import { getGroupSales, describeGroup } from "../_shared/checkout-group.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -66,17 +67,24 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const items = await getSaleItems(supabase, sale);
-    if (items.length === 0) {
+    // Resend every file across every item in the checkout group, not just this one row.
+    const groupSales = await getGroupSales(supabase, sale.checkout_group_id);
+    const paidGroupSales = groupSales.filter((s: any) => s.payment_status === "paid");
+
+    const accessToken = await googleDrive.getAccessToken();
+    let resentCount = 0;
+    for (const groupSale of paidGroupSales) {
+      const items = await getSaleItems(supabase, groupSale);
+      for (const item of items) {
+        await googleDrive.resendShareNotification(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
+        resentCount++;
+      }
+    }
+    if (resentCount === 0) {
       return new Response(JSON.stringify({ error: "Arquivo não encontrado" }), {
         status: 404,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
-    }
-
-    const accessToken = await googleDrive.getAccessToken();
-    for (const item of items) {
-      await googleDrive.resendShareNotification(item.file_url, sale.buyer_email, accessToken, sale.download_expires_at);
     }
 
     await logAudit(supabase, req, {
@@ -85,11 +93,7 @@ const handler = async (req: Request): Promise<Response> => {
       action: "sale.resend_download",
       targetType: "sale",
       targetId: sale_id,
-      targetLabel: sale.multitrack
-        ? `${sale.multitrack.artist_name} - ${sale.multitrack.song_name} (${sale.buyer_email})`
-        : sale.bundle
-        ? `${sale.bundle.name} (${sale.buyer_email})`
-        : sale.buyer_email,
+      targetLabel: `${describeGroup(paidGroupSales)} (${sale.buyer_email})`,
       changes: { new: { resent_to: sale.buyer_email } },
     });
 
