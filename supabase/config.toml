@@ -9,9 +9,6 @@ verify_jwt = false
 [functions.get-download]
 verify_jwt = false
 
-[functions.generate-preview]
-verify_jwt = false
-
 [functions.drive-init-upload]
 verify_jwt = true
 
