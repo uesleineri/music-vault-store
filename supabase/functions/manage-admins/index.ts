@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logAudit } from "../_shared/audit.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -85,6 +86,15 @@ const handler = async (req: Request): Promise<Response> => {
         .single();
       if (insertError) throw insertError;
 
+      await logAudit(supabase, req, {
+        actorId: user.id,
+        actorEmail: user.email ?? null,
+        action: "admin.add",
+        targetType: "admin_user",
+        targetId: newAdmin.id,
+        changes: { new: { user_id: targetUser.id, email: targetUser.email } },
+      });
+
       return json({ admin: { ...newAdmin, email: targetUser.email } });
     }
 
@@ -108,8 +118,21 @@ const handler = async (req: Request): Promise<Response> => {
         return json({ error: "Você não pode remover a si mesmo" }, 400);
       }
 
+      const { data: targetUserData } = targetRow
+        ? await supabase.auth.admin.getUserById(targetRow.user_id)
+        : { data: null };
+
       const { error: deleteError } = await supabase.from("admin_users").delete().eq("id", adminUserId);
       if (deleteError) throw deleteError;
+
+      await logAudit(supabase, req, {
+        actorId: user.id,
+        actorEmail: user.email ?? null,
+        action: "admin.remove",
+        targetType: "admin_user",
+        targetId: adminUserId,
+        changes: { old: { user_id: targetRow?.user_id, email: targetUserData?.user?.email } },
+      });
 
       return json({ success: true });
     }

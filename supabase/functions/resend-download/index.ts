@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logAudit } from "../_shared/audit.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -79,6 +80,15 @@ const handler = async (req: Request): Promise<Response> => {
       accessToken,
       sale.download_expires_at
     );
+
+    await logAudit(supabase, req, {
+      actorId: user.id,
+      actorEmail: user.email ?? null,
+      action: "sale.resend_download",
+      targetType: "sale",
+      targetId: sale_id,
+      changes: { new: { resent_to: sale.buyer_email } },
+    });
 
     return new Response(
       JSON.stringify({ success: true, sent_to: sale.buyer_email }),

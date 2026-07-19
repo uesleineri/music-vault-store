@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logAudit } from "../_shared/audit.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -107,6 +108,15 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (updateError) throw updateError;
+
+    await logAudit(supabase, req, {
+      actorId: user.id,
+      actorEmail: user.email ?? null,
+      action: "sale.verify_payment",
+      targetType: "sale",
+      targetId: sale_id,
+      changes: { old: { payment_status: "pending" }, new: { payment_status: "paid", asaas_status: asaasPayment.status } },
+    });
 
     const driveFileId = updatedSale.multitrack?.file_url;
     if (driveFileId) {

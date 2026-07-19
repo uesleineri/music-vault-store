@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDrive } from "../_shared/google-drive.ts";
+import { logAudit } from "../_shared/audit.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   try {
@@ -48,6 +49,15 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log("Sale updated to paid:", sale.id);
 
+      await logAudit(supabase, req, {
+        actorId: null,
+        actorEmail: "webhook Asaas",
+        action: "sale.payment_confirmed",
+        targetType: "sale",
+        targetId: sale.id,
+        changes: { old: { payment_status: "pending" }, new: { payment_status: "paid" } },
+      });
+
       // Grant the buyer access to the file on Drive; Google sends its own
       // "shared with you" notification email automatically.
       const driveFileId = sale.multitrack?.file_url;
@@ -77,6 +87,15 @@ const handler = async (req: Request): Promise<Response> => {
           .from("sales")
           .update({ payment_status: "failed" })
           .eq("id", externalReference);
+
+        await logAudit(supabase, req, {
+          actorId: null,
+          actorEmail: "webhook Asaas",
+          action: "sale.payment_failed",
+          targetType: "sale",
+          targetId: externalReference,
+          changes: { new: { payment_status: "failed", asaas_event: payload.event } },
+        });
       }
     }
 
