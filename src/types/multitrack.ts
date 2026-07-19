@@ -20,6 +20,8 @@ export interface Sale {
   payment_id: string | null;
   download_token: string | null;
   download_expires_at: string | null;
+  coupon_id: string | null;
+  discount_amount: number;
   created_at: string;
   multitrack?: Multitrack;
 }

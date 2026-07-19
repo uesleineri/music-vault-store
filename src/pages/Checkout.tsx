@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Music, Loader2, Copy, Check, QrCode } from 'lucide-react';
+import { ArrowLeft, Music, Loader2, Copy, Check, QrCode, Tag, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,9 +22,14 @@ export default function Checkout() {
     qrCodeImage: string;
     copyPaste: string;
     expiration: string;
+    amount: number;
   } | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const [couponCode, setCouponCode] = useState('');
+  const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number; finalPrice: number } | null>(null);
 
   // Format CPF as user types
   const formatCpf = (value: string) => {
@@ -70,6 +75,39 @@ export default function Checkout() {
     if (numbers.length <= 2) return numbers;
     if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim() || !multitrack) return;
+    setIsCheckingCoupon(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('validate-coupon', {
+        body: { code: couponCode.trim(), multitrack_id: multitrack.id },
+      });
+      if (error) throw error;
+
+      if (!data.valid) {
+        toast({ title: 'Cupom inválido', description: data.error, variant: 'destructive' });
+        setAppliedCoupon(null);
+        return;
+      }
+
+      setAppliedCoupon({
+        code: couponCode.trim().toUpperCase(),
+        discountAmount: data.discount_amount,
+        finalPrice: data.final_price,
+      });
+      toast({ title: 'Cupom aplicado!', description: `Desconto de R$ ${data.discount_amount.toFixed(2).replace('.', ',')}` });
+    } catch (error: any) {
+      toast({ title: 'Erro ao validar cupom', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsCheckingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,16 +162,19 @@ export default function Checkout() {
           buyer_email: email,
           buyer_cpf: cpfNumbers,
           buyer_phone: phoneNumbers,
+          coupon_code: appliedCoupon?.code,
         },
       });
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
       if (data.pix_qr_code_image) {
         setPixData({
           qrCodeImage: data.pix_qr_code_image,
           copyPaste: data.pix_copy_paste,
           expiration: data.pix_expiration,
+          amount: data.amount,
         });
         setSaleId(data.sale_id);
         toast({
@@ -218,7 +259,7 @@ export default function Checkout() {
               <p className="text-sm text-muted-foreground truncate">{multitrack.artist_name}</p>
             </div>
             <div className="text-lg font-bold text-primary">
-              R$ {multitrack.price.toFixed(2).replace('.', ',')}
+              R$ {pixData.amount.toFixed(2).replace('.', ',')}
             </div>
           </CardContent>
         </Card>
@@ -373,10 +414,56 @@ export default function Checkout() {
                 O link de download será enviado para este email após a confirmação do pagamento.
               </p>
 
+              <div className="space-y-2">
+                <Label htmlFor="coupon">Cupom de desconto</Label>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Tag className="h-4 w-4 text-success" />
+                      {appliedCoupon.code} aplicado
+                    </span>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={handleRemoveCoupon}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      id="coupon"
+                      placeholder="Ex: PROMO10"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleApplyCoupon}
+                      disabled={isCheckingCoupon || !couponCode.trim()}
+                    >
+                      {isCheckingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               <div className="border-t pt-4">
+                {appliedCoupon && (
+                  <>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
+                      <span>Subtotal</span>
+                      <span>R$ {multitrack.price.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-success mb-1">
+                      <span>Desconto ({appliedCoupon.code})</span>
+                      <span>- R$ {appliedCoupon.discountAmount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex items-center justify-between text-lg font-semibold mb-4">
                   <span>Total</span>
-                  <span>R$ {multitrack.price.toFixed(2).replace('.', ',')}</span>
+                  <span>
+                    R$ {(appliedCoupon ? appliedCoupon.finalPrice : multitrack.price).toFixed(2).replace('.', ',')}
+                  </span>
                 </div>
                 <Button type="submit" size="lg" className="w-full" disabled={isProcessing}>
                   {isProcessing ? (

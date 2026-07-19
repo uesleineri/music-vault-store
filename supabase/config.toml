@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.get-download]
 verify_jwt = false
 
+[functions.validate-coupon]
+verify_jwt = false
+
 [functions.drive-init-upload]
 verify_jwt = true
 

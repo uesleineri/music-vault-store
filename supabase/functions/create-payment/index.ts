@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { validateCoupon } from "../_shared/coupons.ts";
 
 interface CreatePaymentRequest {
   multitrack_id: string;
@@ -8,6 +9,7 @@ interface CreatePaymentRequest {
   buyer_email: string;
   buyer_cpf: string;
   buyer_phone: string;
+  coupon_code?: string;
 }
 
 // Masks PII (CPF, phone, email) before it ever reaches the Edge Function logs.
@@ -40,7 +42,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { multitrack_id, buyer_name, buyer_email, buyer_cpf, buyer_phone }: CreatePaymentRequest = await req.json();
+    const { multitrack_id, buyer_name, buyer_email, buyer_cpf, buyer_phone, coupon_code }: CreatePaymentRequest = await req.json();
 
     // Never trust a price from the client - look up the real, current price
     // for this multitrack so a tampered request can't buy it for less.
@@ -57,8 +59,38 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const amount = multitrack.price;
+    let amount = multitrack.price;
+    let discountAmount = 0;
+    let couponId: string | null = null;
     const multitrack_name = `${multitrack.artist_name} - ${multitrack.song_name}`;
+
+    // Re-validate the coupon here too (never trust the discount the checkout
+    // page previewed via validate-coupon) and reserve it atomically so two
+    // simultaneous checkouts can't both use the last redemption.
+    if (coupon_code) {
+      const couponResult = await validateCoupon(supabase, coupon_code, multitrack.price);
+      if (!couponResult.valid) {
+        return new Response(
+          JSON.stringify({ error: couponResult.error || "Cupom inválido" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const { data: consumed, error: consumeError } = await supabase.rpc("consume_coupon", {
+        p_coupon_id: couponResult.coupon.id,
+      });
+      if (consumeError) throw consumeError;
+      if (!consumed) {
+        return new Response(
+          JSON.stringify({ error: "Este cupom acabou de esgotar. Tente novamente sem ele." }),
+          { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      amount = couponResult.finalPrice!;
+      discountAmount = couponResult.discountAmount!;
+      couponId = couponResult.coupon.id;
+    }
 
     // Generate unique download token
     const downloadToken = crypto.randomUUID();
@@ -72,6 +104,8 @@ const handler = async (req: Request): Promise<Response> => {
         multitrack_id,
         buyer_email,
         amount,
+        coupon_id: couponId,
+        discount_amount: discountAmount,
         payment_status: "pending",
         download_token: downloadToken,
         download_expires_at: downloadExpiresAt.toISOString(),
@@ -182,6 +216,8 @@ const handler = async (req: Request): Promise<Response> => {
         success: true,
         sale_id: sale.id,
         payment_id: payment.id,
+        amount,
+        discount_amount: discountAmount,
         pix_qr_code_image: pixData.encodedImage, // Base64 image
         pix_copy_paste: pixData.payload, // Copy-paste code
         pix_expiration: pixData.expirationDate,

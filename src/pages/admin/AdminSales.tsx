@@ -503,6 +503,11 @@ export default function AdminSales() {
                       <TableCell>{sale.buyer_email}</TableCell>
                       <TableCell className="font-medium">
                         R$ {Number(sale.amount).toFixed(2).replace('.', ',')}
+                        {sale.discount_amount > 0 && (
+                          <p className="text-xs font-normal text-success">
+                            -R$ {Number(sale.discount_amount).toFixed(2).replace('.', ',')} cupom
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={status.variant}>{status.label}</Badge>

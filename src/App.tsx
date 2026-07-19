@@ -24,6 +24,7 @@ import AdminMultitracks from "@/pages/admin/AdminMultitracks";
 import AdminSales from "@/pages/admin/AdminSales";
 import AdminAdministrators from "@/pages/admin/AdminAdministrators";
 import AdminAuditLogs from "@/pages/admin/AdminAuditLogs";
+import AdminCoupons from "@/pages/admin/AdminCoupons";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="sales" element={<AdminSales />} />
             <Route path="administrators" element={<AdminAdministrators />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
+            <Route path="coupons" element={<AdminCoupons />} />
           </Route>
 
           {/* 404 */}
