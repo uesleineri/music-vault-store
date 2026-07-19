@@ -100,9 +100,18 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Same value/netValue fields Asaas sends on the webhook payload are also
+    // present on this GET response - capture them here too, since a sale can be
+    // confirmed via manual verification instead of the webhook.
+    const grossValue = asaasPayment.value;
+    const netValue = asaasPayment.netValue;
+    const feeFields = typeof grossValue === "number" && typeof netValue === "number"
+      ? { asaas_fee: grossValue - netValue, net_amount: netValue }
+      : {};
+
     const { data: updatedSale, error: updateError } = await supabase
       .from("sales")
-      .update({ payment_status: "paid" })
+      .update({ payment_status: "paid", ...feeFields })
       .eq("id", sale_id)
       .select(`*, multitrack:multitracks(*)`)
       .single();

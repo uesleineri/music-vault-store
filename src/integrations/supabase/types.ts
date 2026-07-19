@@ -71,34 +71,46 @@ export type Database = {
       sales: {
         Row: {
           amount: number
+          asaas_fee: number | null
           buyer_email: string
+          coupon_id: string | null
           created_at: string
+          discount_amount: number
           download_expires_at: string | null
           download_token: string | null
           id: string
           multitrack_id: string
+          net_amount: number | null
           payment_id: string | null
           payment_status: string
         }
         Insert: {
           amount: number
+          asaas_fee?: number | null
           buyer_email: string
+          coupon_id?: string | null
           created_at?: string
+          discount_amount?: number
           download_expires_at?: string | null
           download_token?: string | null
           id?: string
           multitrack_id: string
+          net_amount?: number | null
           payment_id?: string | null
           payment_status?: string
         }
         Update: {
           amount?: number
+          asaas_fee?: number | null
           buyer_email?: string
+          coupon_id?: string | null
           created_at?: string
+          discount_amount?: number
           download_expires_at?: string | null
           download_token?: string | null
           id?: string
           multitrack_id?: string
+          net_amount?: number | null
           payment_id?: string | null
           payment_status?: string
         }

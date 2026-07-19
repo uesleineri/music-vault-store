@@ -31,10 +31,18 @@ const handler = async (req: Request): Promise<Response> => {
         return new Response("OK", { status: 200 });
       }
 
+      // Asaas' PIX payment object includes value/netValue (netValue = value minus
+      // the Asaas fee) - capture it now since this payload won't be seen again.
+      const grossValue = payload.payment?.value;
+      const netValue = payload.payment?.netValue;
+      const feeFields = typeof grossValue === "number" && typeof netValue === "number"
+        ? { asaas_fee: grossValue - netValue, net_amount: netValue }
+        : {};
+
       // Update sale status
       const { data: sale, error: updateError } = await supabase
         .from("sales")
-        .update({ payment_status: "paid" })
+        .update({ payment_status: "paid", ...feeFields })
         .eq("id", externalReference)
         .select(`
           *,

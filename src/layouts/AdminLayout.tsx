@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag } from 'lucide-react';
+import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,6 +9,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/multitracks', label: 'Multitracks', icon: Music },
   { href: '/admin/sales', label: 'Vendas', icon: ShoppingCart },
+  { href: '/admin/financial', label: 'Financeiro', icon: Wallet },
   { href: '/admin/coupons', label: 'Cupons', icon: Tag },
   { href: '/admin/administrators', label: 'Administradores', icon: Users },
   { href: '/admin/audit-logs', label: 'Logs de Auditoria', icon: History },

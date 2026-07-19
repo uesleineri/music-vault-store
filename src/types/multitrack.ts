@@ -22,6 +22,8 @@ export interface Sale {
   download_expires_at: string | null;
   coupon_id: string | null;
   discount_amount: number;
+  asaas_fee: number | null;
+  net_amount: number | null;
   created_at: string;
   multitrack?: Multitrack;
 }
