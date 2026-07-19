@@ -39,7 +39,13 @@ export function useMultitracks(params: MultitracksParams = {}) {
       }
 
       if (searchQuery) {
-        query = query.or(`artist_name.ilike.%${searchQuery}%,song_name.ilike.%${searchQuery}%`);
+        // PostgREST's .or() filter string treats ",", "(", ")" as syntax, and
+        // "%"/"_" as ILIKE wildcards - strip them so a search term can't inject
+        // extra filter clauses or unintended wildcard matches.
+        const safeQuery = searchQuery.replace(/[,()%_]/g, ' ').trim();
+        if (safeQuery) {
+          query = query.or(`artist_name.ilike.%${safeQuery}%,song_name.ilike.%${safeQuery}%`);
+        }
       }
 
       const { data, error, count } = await query;

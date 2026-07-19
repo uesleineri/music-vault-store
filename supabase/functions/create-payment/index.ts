@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface CreatePaymentRequest {
   multitrack_id: string;
@@ -14,7 +10,22 @@ interface CreatePaymentRequest {
   buyer_phone: string;
 }
 
+// Masks PII (CPF, phone, email) before it ever reaches the Edge Function logs.
+function redactPII(obj: Record<string, any>): Record<string, any> {
+  const maskTail = (value: unknown) =>
+    typeof value === "string" && value.length > 2 ? `${value.slice(0, 2)}***${value.slice(-2)}` : "***";
+  const redacted: Record<string, any> = { ...obj };
+  for (const key of ["cpfCnpj", "mobilePhone", "phone", "email"]) {
+    if (key in redacted) redacted[key] = maskTail(redacted[key]);
+  }
+  if (Array.isArray(redacted.data)) {
+    redacted.data = redacted.data.map((item: any) => (item && typeof item === "object" ? redactPII(item) : item));
+  }
+  return redacted;
+}
+
 const handler = async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -78,8 +89,8 @@ const handler = async (req: Request): Promise<Response> => {
       mobilePhone: buyer_phone,
     };
     
-    console.log("Creating customer with body:", JSON.stringify(customerBody));
-    
+    console.log("Creating customer with body:", JSON.stringify(redactPII(customerBody)));
+
     const customerResponse = await fetch("https://api.asaas.com/v3/customers", {
       method: "POST",
       headers: {
@@ -92,7 +103,7 @@ const handler = async (req: Request): Promise<Response> => {
     let customer;
     const customerResponseData = await customerResponse.json();
     console.log("Customer response status:", customerResponse.status);
-    console.log("Customer response data:", JSON.stringify(customerResponseData));
+    console.log("Customer response data:", JSON.stringify(redactPII(customerResponseData)));
 
     if (customerResponse.status === 409 || customerResponseData.errors?.some((e: any) => e.code === "invalid_cpfCnpj_alreadyInUse")) {
       // Customer already exists, fetch by CPF
@@ -104,12 +115,12 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
       const searchData = await searchResponse.json();
-      console.log("Search response:", JSON.stringify(searchData));
+      console.log("Search response:", JSON.stringify(redactPII(searchData)));
       customer = searchData.data?.[0];
     } else if (customerResponseData.id) {
       customer = customerResponseData;
     } else {
-      console.error("Customer creation failed:", customerResponseData);
+      console.error("Customer creation failed:", redactPII(customerResponseData));
       throw new Error(`Failed to create customer: ${JSON.stringify(customerResponseData)}`);
     }
 
