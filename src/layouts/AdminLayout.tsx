@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag, Wallet, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NotificationsBell } from '@/components/admin/NotificationsBell';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
@@ -89,7 +90,10 @@ export function AdminLayout() {
           <h1 className="text-lg font-semibold">
             {navItems.find((item) => item.href === location.pathname)?.label || 'Admin'}
           </h1>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <NotificationsBell />
+            <ThemeToggle />
+          </div>
         </header>
         <main className="flex-1 p-6 bg-muted/30">
           <Outlet />
