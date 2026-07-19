@@ -172,6 +172,54 @@ async function shareFileWithUser(
   return response.json();
 }
 
+// Drive doesn't expose a folder's total size anywhere in its API, so this
+// walks the tree (paginating each level) and sums every file it finds.
+async function getFolderSizeRecursive(
+  folderId: string,
+  accessToken: string
+): Promise<{ totalBytes: number; fileCount: number }> {
+  let totalBytes = 0;
+  let fileCount = 0;
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed = false`,
+      fields: "nextPageToken,files(id,mimeType,size)",
+      pageSize: "1000",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw new Error(`Drive folder listing failed: ${await response.text()}`);
+    const data = await response.json();
+
+    for (const item of data.files ?? []) {
+      if (item.mimeType === "application/vnd.google-apps.folder") {
+        const nested = await getFolderSizeRecursive(item.id, accessToken);
+        totalBytes += nested.totalBytes;
+        fileCount += nested.fileCount;
+      } else {
+        totalBytes += Number(item.size ?? 0);
+        fileCount += 1;
+      }
+    }
+
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return { totalBytes, fileCount };
+}
+
+// Usage for just the app's own folder (the multitracks), not the whole Drive.
+async function getAppFolderUsage(accessToken: string): Promise<{ totalBytes: number; fileCount: number }> {
+  const rootId = await findFolder(ROOT_FOLDER_NAME, null, accessToken);
+  if (!rootId) return { totalBytes: 0, fileCount: 0 };
+  return getFolderSizeRecursive(rootId, accessToken);
+}
+
 export const googleDrive = {
   getAccessToken,
   findOrCreateFolder,
@@ -180,4 +228,5 @@ export const googleDrive = {
   getFile,
   shareFileWithUser,
   resendShareNotification,
+  getAppFolderUsage,
 };

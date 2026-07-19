@@ -28,7 +28,14 @@ function useDriveUsage() {
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('drive-usage');
       if (error) throw error;
-      return data as { email: string; usage: number; usageInDrive: number; limit: number | null };
+      return data as {
+        email: string;
+        usage: number;
+        usageInDrive: number;
+        limit: number | null;
+        appFolderBytes: number;
+        appFolderFileCount: number;
+      };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -207,6 +214,16 @@ export default function AdminDashboard() {
               )}
               <p className="text-xs text-muted-foreground">
                 Uso total da sua conta do Drive (inclui outros arquivos, não só as multitracks).
+              </p>
+              <div className="flex justify-between text-sm pt-2 mt-2 border-t">
+                <span className="text-muted-foreground">Pasta "Gospel VS - Multitracks"</span>
+                <span className="font-medium">
+                  {formatBytes(driveUsage.appFolderBytes)} · {driveUsage.appFolderFileCount} arquivo
+                  {driveUsage.appFolderFileCount === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Calculado somando o tamanho de cada arquivo (o Drive não mostra isso por pasta).
               </p>
             </div>
           ) : (

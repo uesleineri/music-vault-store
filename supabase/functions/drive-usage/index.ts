@@ -48,12 +48,17 @@ const handler = async (req: Request): Promise<Response> => {
     if (!response.ok) throw new Error(`Drive about() failed: ${await response.text()}`);
     const about = await response.json();
 
+    // Drive has no native "folder size" - walk the app's folder tree and sum it ourselves.
+    const appFolderUsage = await googleDrive.getAppFolderUsage(accessToken);
+
     return new Response(
       JSON.stringify({
         email: about.user?.emailAddress,
         usage: Number(about.storageQuota?.usage ?? 0),
         usageInDrive: Number(about.storageQuota?.usageInDrive ?? 0),
         limit: about.storageQuota?.limit ? Number(about.storageQuota.limit) : null,
+        appFolderBytes: appFolderUsage.totalBytes,
+        appFolderFileCount: appFolderUsage.fileCount,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
