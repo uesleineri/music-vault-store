@@ -40,16 +40,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Each digital item only makes sense once per cart - returns false (no-op)
   // if it's already there, so callers can tell the user it was a duplicate.
+  // Checked against `items` directly (not inside the setState updater) since
+  // the updater runs asynchronously - reading a flag it set would always see
+  // the initial value.
   const addItem = (item: CartItem): boolean => {
-    let added = true;
-    setItems((prev) => {
-      if (prev.some((existing) => existing.type === item.type && existing.id === item.id)) {
-        added = false;
-        return prev;
-      }
-      return [...prev, item];
-    });
-    return added;
+    if (items.some((existing) => existing.type === item.type && existing.id === item.id)) {
+      return false;
+    }
+    setItems((prev) => [...prev, item]);
+    return true;
   };
 
   const removeItem = (type: CartItem['type'], id: string) => {

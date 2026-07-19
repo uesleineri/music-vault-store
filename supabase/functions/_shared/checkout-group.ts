@@ -19,6 +19,11 @@ export async function getGroupSales(supabase: any, checkoutGroupId: string) {
 export function distributeFee(rows: any[], grossValue: number, netValue: number) {
   const feeTotal = grossValue - netValue;
   const totalAmount = rows.reduce((sum, row) => sum + Number(row.amount), 0);
+  // A 100%-off coupon can make totalAmount 0 - avoid dividing by zero (which
+  // would write NaN into asaas_fee/net_amount).
+  if (totalAmount === 0) {
+    return rows.map((row) => ({ id: row.id, asaas_fee: 0, net_amount: 0 }));
+  }
   let allocated = 0;
 
   return rows.map((row, index) => {
