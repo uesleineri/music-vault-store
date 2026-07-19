@@ -8,6 +8,7 @@ export interface AuditLog {
   action: string;
   target_type: string;
   target_id: string | null;
+  target_label: string | null;
   changes: { old?: Record<string, unknown>; new?: Record<string, unknown> } | null;
   ip_address: string | null;
   user_agent: string | null;

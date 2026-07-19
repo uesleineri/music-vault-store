@@ -87,6 +87,9 @@ const handler = async (req: Request): Promise<Response> => {
       action: "sale.resend_download",
       targetType: "sale",
       targetId: sale_id,
+      targetLabel: sale.multitrack
+        ? `${sale.multitrack.artist_name} - ${sale.multitrack.song_name} (${sale.buyer_email})`
+        : sale.buyer_email,
       changes: { new: { resent_to: sale.buyer_email } },
     });
 

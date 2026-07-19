@@ -92,6 +92,7 @@ const handler = async (req: Request): Promise<Response> => {
         action: "admin.add",
         targetType: "admin_user",
         targetId: newAdmin.id,
+        targetLabel: targetUser.email,
         changes: { new: { user_id: targetUser.id, email: targetUser.email } },
       });
 
@@ -131,6 +132,7 @@ const handler = async (req: Request): Promise<Response> => {
         action: "admin.remove",
         targetType: "admin_user",
         targetId: adminUserId,
+        targetLabel: targetUserData?.user?.email ?? null,
         changes: { old: { user_id: targetRow?.user_id, email: targetUserData?.user?.email } },
       });
 

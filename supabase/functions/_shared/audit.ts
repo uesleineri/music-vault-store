@@ -10,6 +10,7 @@ export async function logAudit(
     action: string;
     targetType: string;
     targetId?: string | null;
+    targetLabel?: string | null;
     changes?: Record<string, unknown> | null;
   }
 ) {
@@ -20,6 +21,7 @@ export async function logAudit(
       action: params.action,
       target_type: params.targetType,
       target_id: params.targetId ?? null,
+      target_label: params.targetLabel ?? null,
       changes: params.changes ?? null,
       ip_address: req.headers.get("x-forwarded-for"),
       user_agent: req.headers.get("user-agent"),

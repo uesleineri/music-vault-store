@@ -115,6 +115,9 @@ const handler = async (req: Request): Promise<Response> => {
       action: "sale.verify_payment",
       targetType: "sale",
       targetId: sale_id,
+      targetLabel: updatedSale.multitrack
+        ? `${updatedSale.multitrack.artist_name} - ${updatedSale.multitrack.song_name} (${updatedSale.buyer_email})`
+        : updatedSale.buyer_email,
       changes: { old: { payment_status: "pending" }, new: { payment_status: "paid", asaas_status: asaasPayment.status } },
     });
 

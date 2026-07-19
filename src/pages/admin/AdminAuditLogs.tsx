@@ -24,18 +24,6 @@ import { useAuditLogs, AuditLog } from '@/hooks/useAuditLogs';
 
 const PAGE_SIZE = 20;
 
-const actionLabels: Record<string, string> = {
-  'multitrack.insert': 'Cadastrou multitrack',
-  'multitrack.update': 'Atualizou multitrack',
-  'multitrack.delete': 'Excluiu multitrack',
-  'admin.add': 'Adicionou administrador',
-  'admin.remove': 'Removeu administrador',
-  'sale.verify_payment': 'Verificou pagamento na Asaas',
-  'sale.resend_download': 'Reenviou download',
-  'sale.payment_confirmed': 'Pagamento confirmado (webhook Asaas)',
-  'sale.payment_failed': 'Pagamento falhou/expirou (webhook Asaas)',
-};
-
 const targetTypeOptions = [
   { value: 'all', label: 'Todos os tipos' },
   { value: 'multitrack', label: 'Multitracks' },
@@ -43,10 +31,72 @@ const targetTypeOptions = [
   { value: 'admin_user', label: 'Administradores' },
 ];
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
+// Field name -> human label. Anything not listed falls back to a prettified key.
+const fieldLabels: Record<string, string> = {
+  artist_name: 'Artista',
+  song_name: 'Música',
+  price: 'Preço',
+  cover_url: 'Capa',
+  file_url: 'Arquivo (Drive)',
+  preview_url: 'Preview de áudio',
+  is_active: 'Status',
+  user_id: 'ID do usuário',
+  email: 'E-mail',
+  payment_status: 'Status do pagamento',
+  asaas_status: 'Status na Asaas',
+  asaas_event: 'Evento da Asaas',
+  resent_to: 'Reenviado para',
+};
+
+const paymentStatusLabels: Record<string, string> = {
+  pending: 'Pendente',
+  paid: 'Pago',
+  failed: 'Falhou',
+};
+
+// Fields whose raw value (a Drive file ID or a long URL) means nothing to a
+// human - show that it changed without dumping the raw value.
+const opaqueFields = new Set(['file_url', 'cover_url', 'preview_url']);
+
+function prettifyKey(key: string): string {
+  return fieldLabels[key] ?? key.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function formatFieldValue(key: string, value: unknown): string {
+  if (opaqueFields.has(key)) return value ? 'definido' : 'removido';
+  if (key === 'is_active') return value ? 'Publicada' : 'Despublicada';
+  if (key === 'price' && typeof value === 'number') return `R$ ${value.toFixed(2).replace('.', ',')}`;
+  if (key === 'payment_status' && typeof value === 'string') return paymentStatusLabels[value] ?? value;
+  if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+// A short, specific verb for the Ação column - falls back to a generic label
+// when the change doesn't match one of the well-known single-field patterns.
+function getActionLabel(log: AuditLog): string {
+  if (log.action === 'multitrack.update' && log.changes) {
+    const keys = Object.keys(log.changes.new ?? {});
+    if (keys.length === 1 && keys[0] === 'is_active') {
+      return log.changes.new?.is_active ? 'Publicou multitrack' : 'Despublicou multitrack';
+    }
+    if (keys.length === 1 && keys[0] === 'price') {
+      return 'Alterou preço';
+    }
+  }
+
+  const genericLabels: Record<string, string> = {
+    'multitrack.insert': 'Cadastrou multitrack',
+    'multitrack.update': 'Atualizou multitrack',
+    'multitrack.delete': 'Excluiu multitrack',
+    'admin.add': 'Adicionou administrador',
+    'admin.remove': 'Removeu administrador',
+    'sale.verify_payment': 'Verificou pagamento na Asaas',
+    'sale.resend_download': 'Reenviou download',
+    'sale.payment_confirmed': 'Pagamento confirmado (webhook Asaas)',
+    'sale.payment_failed': 'Pagamento falhou/expirou (webhook Asaas)',
+  };
+  return genericLabels[log.action] ?? log.action;
 }
 
 function ChangesSummary({ log }: { log: AuditLog }) {
@@ -55,16 +105,16 @@ function ChangesSummary({ log }: { log: AuditLog }) {
   const { old: oldVals, new: newVals } = log.changes;
 
   if (oldVals && newVals) {
-    const keys = Object.keys(newVals);
+    const keys = Object.keys(newVals).filter((k) => k !== 'id');
     if (keys.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
     return (
       <div className="space-y-1 text-xs">
         {keys.map((key) => (
           <div key={key}>
-            <span className="font-medium">{key}:</span>{' '}
-            <span className="text-muted-foreground line-through">{formatValue(oldVals[key])}</span>
+            <span className="font-medium">{prettifyKey(key)}:</span>{' '}
+            <span className="text-muted-foreground line-through">{formatFieldValue(key, oldVals[key])}</span>
             {' → '}
-            <span>{formatValue(newVals[key])}</span>
+            <span>{formatFieldValue(key, newVals[key])}</span>
           </div>
         ))}
       </div>
@@ -73,11 +123,12 @@ function ChangesSummary({ log }: { log: AuditLog }) {
 
   const only = newVals ?? oldVals;
   if (!only) return <span className="text-muted-foreground text-xs">—</span>;
+  const keys = Object.keys(only).filter((k) => k !== 'id');
   return (
     <div className="space-y-1 text-xs">
-      {Object.entries(only).map(([key, value]) => (
+      {keys.map((key) => (
         <div key={key}>
-          <span className="font-medium">{key}:</span> {formatValue(value)}
+          <span className="font-medium">{prettifyKey(key)}:</span> {formatFieldValue(key, only[key])}
         </div>
       ))}
     </div>
@@ -136,6 +187,7 @@ export default function AdminAuditLogs() {
                   <TableHead>Data</TableHead>
                   <TableHead>Quem</TableHead>
                   <TableHead>Ação</TableHead>
+                  <TableHead>Item</TableHead>
                   <TableHead>Mudanças</TableHead>
                   <TableHead>IP</TableHead>
                 </TableRow>
@@ -150,7 +202,10 @@ export default function AdminAuditLogs() {
                       {log.actor_email ?? <span className="text-muted-foreground">sistema</span>}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{actionLabels[log.action] ?? log.action}</Badge>
+                      <Badge variant="outline">{getActionLabel(log)}</Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate" title={log.target_label ?? undefined}>
+                      {log.target_label ?? <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="max-w-md">
                       <ChangesSummary log={log} />

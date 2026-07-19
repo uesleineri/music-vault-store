@@ -55,6 +55,9 @@ const handler = async (req: Request): Promise<Response> => {
         action: "sale.payment_confirmed",
         targetType: "sale",
         targetId: sale.id,
+        targetLabel: sale.multitrack
+          ? `${sale.multitrack.artist_name} - ${sale.multitrack.song_name} (${sale.buyer_email})`
+          : sale.buyer_email,
         changes: { old: { payment_status: "pending" }, new: { payment_status: "paid" } },
       });
 
@@ -83,10 +86,12 @@ const handler = async (req: Request): Promise<Response> => {
       const externalReference = payload.payment?.externalReference;
       
       if (externalReference) {
-        await supabase
+        const { data: failedSale } = await supabase
           .from("sales")
           .update({ payment_status: "failed" })
-          .eq("id", externalReference);
+          .eq("id", externalReference)
+          .select(`*, multitrack:multitracks(*)`)
+          .single();
 
         await logAudit(supabase, req, {
           actorId: null,
@@ -94,6 +99,9 @@ const handler = async (req: Request): Promise<Response> => {
           action: "sale.payment_failed",
           targetType: "sale",
           targetId: externalReference,
+          targetLabel: failedSale?.multitrack
+            ? `${failedSale.multitrack.artist_name} - ${failedSale.multitrack.song_name} (${failedSale.buyer_email})`
+            : failedSale?.buyer_email ?? null,
           changes: { new: { payment_status: "failed", asaas_event: payload.event } },
         });
       }
