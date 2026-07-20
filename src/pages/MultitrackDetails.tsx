@@ -3,13 +3,15 @@ import { ArrowLeft, Music, ShoppingCart, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AudioPlayer } from '@/components/AudioPlayer';
-import { useMultitrack } from '@/hooks/useMultitracks';
+import { MultitrackCard } from '@/components/MultitrackCard';
+import { useMultitrack, useRecommendations } from '@/hooks/useMultitracks';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 
 export default function MultitrackDetails() {
   const { id } = useParams<{ id: string }>();
   const { data: multitrack, isLoading } = useMultitrack(id || '');
+  const { data: recommendations } = useRecommendations(id || '', multitrack?.artist_name, multitrack?.genre);
   const { addItem } = useCart();
   const { toast } = useToast();
 
@@ -123,6 +125,17 @@ export default function MultitrackDetails() {
           </p>
         </div>
       </div>
+
+      {recommendations && recommendations.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-2xl font-bold mb-6">Você também pode gostar</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {recommendations.map((rec) => (
+              <MultitrackCard key={rec.id} multitrack={rec} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

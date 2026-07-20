@@ -250,7 +250,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_frequently_bought_with: {
+        Args: { p_multitrack_id: string; p_limit?: number }
+        Returns: { multitrack_id: string; purchase_count: number }[]
+      }
     }
     Enums: {
       [_ in never]: never

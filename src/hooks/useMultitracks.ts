@@ -162,6 +162,70 @@ export function useUpdateMultitrack() {
   });
 }
 
+// "Você também pode gostar": blends frequently-bought-together (via a
+// SECURITY DEFINER RPC, since `sales` itself is admin-only to read), same
+// artist, and same genre, falling back to recently-added songs to always
+// fill the slot. Priority order matches how strong each signal is.
+export function useRecommendations(multitrackId: string, artistName?: string, genre?: string | null) {
+  return useQuery({
+    queryKey: ['recommendations', multitrackId, artistName, genre],
+    queryFn: async () => {
+      const results = new Map<string, Multitrack>();
+      const LIMIT = 4;
+
+      const { data: boughtWith } = await supabase.rpc('get_frequently_bought_with', {
+        p_multitrack_id: multitrackId,
+        p_limit: LIMIT,
+      });
+      const boughtWithIds = (boughtWith ?? []).map((row) => row.multitrack_id);
+      if (boughtWithIds.length > 0) {
+        const { data: rows } = await supabase
+          .from('multitracks')
+          .select('*')
+          .in('id', boughtWithIds)
+          .eq('is_active', true);
+        (rows ?? []).forEach((m) => results.set(m.id, m as Multitrack));
+      }
+
+      if (results.size < LIMIT && artistName) {
+        const { data: rows } = await supabase
+          .from('multitracks')
+          .select('*')
+          .eq('artist_name', artistName)
+          .eq('is_active', true)
+          .neq('id', multitrackId)
+          .limit(LIMIT);
+        (rows ?? []).forEach((m) => { if (!results.has(m.id)) results.set(m.id, m as Multitrack); });
+      }
+
+      if (results.size < LIMIT && genre) {
+        const { data: rows } = await supabase
+          .from('multitracks')
+          .select('*')
+          .eq('genre', genre)
+          .eq('is_active', true)
+          .neq('id', multitrackId)
+          .limit(LIMIT);
+        (rows ?? []).forEach((m) => { if (!results.has(m.id)) results.set(m.id, m as Multitrack); });
+      }
+
+      if (results.size < LIMIT) {
+        const { data: rows } = await supabase
+          .from('multitracks')
+          .select('*')
+          .eq('is_active', true)
+          .neq('id', multitrackId)
+          .order('created_at', { ascending: false })
+          .limit(LIMIT);
+        (rows ?? []).forEach((m) => { if (!results.has(m.id)) results.set(m.id, m as Multitrack); });
+      }
+
+      return Array.from(results.values()).slice(0, LIMIT);
+    },
+    enabled: !!multitrackId,
+  });
+}
+
 export function useDeleteMultitrack() {
   const queryClient = useQueryClient();
 
