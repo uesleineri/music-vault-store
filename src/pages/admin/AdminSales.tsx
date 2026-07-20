@@ -12,7 +12,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Music, ShoppingCart, Loader2, Calendar, TrendingUp, RefreshCw, Send, Download, Receipt, Percent } from 'lucide-react';
+import { Music, ShoppingCart, CheckCircle2, Loader2, Calendar, TrendingUp, RefreshCw, Send, Download, Receipt, Percent, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -115,6 +126,25 @@ export default function AdminSales() {
     onError: async (error: any) => {
       const description = await getFunctionErrorMessage(error);
       toast({ title: 'Erro ao reenviar download', description, variant: 'destructive' });
+    },
+  });
+
+  const cancelSale = useMutation({
+    mutationFn: async (saleId: string) => {
+      const { data, error } = await supabase.functions.invoke('cancel-sale', {
+        body: { sale_id: saleId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({ title: 'Venda cancelada' });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-stats'] });
+    },
+    onError: async (error: any) => {
+      const description = await getFunctionErrorMessage(error);
+      toast({ title: 'Erro ao cancelar venda', description, variant: 'destructive' });
     },
   });
 
@@ -218,7 +248,7 @@ export default function AdminSales() {
     const averageTicket = paidOrders > 0 ? totalRevenue / paidOrders : 0;
     const conversionRate = totalSales > 0 ? (paidOrders / totalSales) * 100 : 0;
 
-    return { totalSales, totalRevenue, pendingRevenue, averageTicket, conversionRate };
+    return { totalSales, paidOrders, totalRevenue, pendingRevenue, averageTicket, conversionRate };
   }, [filteredSales]);
 
   const handleExportCsv = () => {
@@ -276,16 +306,27 @@ export default function AdminSales() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de Vendas
+              Vendas Iniciadas
             </CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totals.totalSales}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Vendas Concluídas
+            </CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-success">{totals.paidOrders}</div>
           </CardContent>
         </Card>
         <Card>
@@ -346,7 +387,7 @@ export default function AdminSales() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Vendas por Dia</CardTitle>
+            <CardTitle className="text-lg">Pedidos Iniciados por Dia</CardTitle>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -430,7 +471,7 @@ export default function AdminSales() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
-                  <TableHead className="text-center">Vendas</TableHead>
+                  <TableHead className="text-center">Iniciadas</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Confirmado</TableHead>
                 </TableRow>
@@ -522,20 +563,58 @@ export default function AdminSales() {
                       </TableCell>
                       <TableCell className="text-right">
                         {sale.payment_status === 'pending' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1.5"
-                            disabled={verifyPayment.isPending && verifyPayment.variables === sale.id}
-                            onClick={() => verifyPayment.mutate(sale.id)}
-                          >
-                            {verifyPayment.isPending && verifyPayment.variables === sale.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3.5 w-3.5" />
-                            )}
-                            Verificar status
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1.5"
+                              disabled={verifyPayment.isPending && verifyPayment.variables === sale.id}
+                              onClick={() => verifyPayment.mutate(sale.id)}
+                            >
+                              {verifyPayment.isPending && verifyPayment.variables === sale.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              )}
+                              Verificar status
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-1.5 text-destructive hover:text-destructive"
+                                  disabled={cancelSale.isPending && cancelSale.variables === sale.id}
+                                >
+                                  {cancelSale.isPending && cancelSale.variables === sale.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <XCircle className="h-3.5 w-3.5" />
+                                  )}
+                                  Cancelar
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Cancelar esta venda?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Marca a venda como "Falhou". Use isso para vendas travadas que nunca vão ser
+                                    pagas (ex: cobrança que nunca chegou a ser criada na Asaas). Não pode ser
+                                    desfeito pelo painel.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Voltar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => cancelSale.mutate(sale.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Cancelar venda
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         )}
                         {sale.payment_status === 'paid' && (
                           <Button
