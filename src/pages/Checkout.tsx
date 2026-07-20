@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Music, Loader2, Copy, Check, QrCode, Tag, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,16 @@ import { useMultitrack } from '@/hooks/useMultitracks';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getFunctionErrorMessage } from '@/lib/functionError';
+import { logFunnelEvent } from '@/lib/funnel';
 
 export default function Checkout() {
   const { id } = useParams<{ id: string }>();
   const { data: multitrack, isLoading } = useMultitrack(id || '');
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (multitrack) logFunnelEvent('checkout_started', { productRef: multitrack.id });
+  }, [multitrack?.id]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [cpf, setCpf] = useState('');
@@ -178,6 +183,7 @@ export default function Checkout() {
           amount: data.amount,
         });
         setSaleId(data.sale_id);
+        logFunnelEvent('pix_generated', { checkoutGroupId: data.sale_id, productRef: multitrack?.id });
         toast({
           title: 'PIX gerado!',
           description: 'Escaneie o QR Code ou copie o código para pagar.',

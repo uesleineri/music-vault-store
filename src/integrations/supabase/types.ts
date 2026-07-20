@@ -32,6 +32,33 @@ export type Database = {
         }
         Relationships: []
       }
+      funnel_events: {
+        Row: {
+          checkout_group_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          product_ref: string | null
+          session_id: string | null
+        }
+        Insert: {
+          checkout_group_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          product_ref?: string | null
+          session_id?: string | null
+        }
+        Update: {
+          checkout_group_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          product_ref?: string | null
+          session_id?: string | null
+        }
+        Relationships: []
+      }
       bundles: {
         Row: {
           cover_url: string | null

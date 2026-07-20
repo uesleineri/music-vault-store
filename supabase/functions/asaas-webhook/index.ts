@@ -71,6 +71,12 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       const buyerEmail = sales[0].buyer_email;
+
+      await supabase.from("funnel_events").insert({
+        event_type: "payment_confirmed",
+        checkout_group_id: externalReference,
+      });
+
       await logAudit(supabase, req, {
         actorId: null,
         actorEmail: "webhook Asaas",

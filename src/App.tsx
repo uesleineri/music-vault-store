@@ -34,6 +34,7 @@ import AdminCoupons from "@/pages/admin/AdminCoupons";
 import AdminFinancial from "@/pages/admin/AdminFinancial";
 import AdminBundles from "@/pages/admin/AdminBundles";
 import AdminNotifications from "@/pages/admin/AdminNotifications";
+import AdminFunnel from "@/pages/admin/AdminFunnel";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
             <Route path="financial" element={<AdminFinancial />} />
             <Route path="bundles" element={<AdminBundles />} />
             <Route path="notifications" element={<AdminNotifications />} />
+            <Route path="funnel" element={<AdminFunnel />} />
           </Route>
 
           {/* 404 */}

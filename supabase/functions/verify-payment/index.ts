@@ -126,6 +126,11 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    await supabase.from("funnel_events").insert({
+      event_type: "payment_confirmed",
+      checkout_group_id: sale.checkout_group_id,
+    });
+
     await logAudit(supabase, req, {
       actorId: user.id,
       actorEmail: user.email ?? null,

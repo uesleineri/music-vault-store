@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Package, Loader2, Copy, Check, QrCode, Tag, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,16 @@ import { useBundle } from '@/hooks/useBundles';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getFunctionErrorMessage } from '@/lib/functionError';
+import { logFunnelEvent } from '@/lib/funnel';
 
 export default function KitCheckout() {
   const { id } = useParams<{ id: string }>();
   const { data: bundle, isLoading } = useBundle(id || '');
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (bundle) logFunnelEvent('checkout_started', { productRef: bundle.id });
+  }, [bundle?.id]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [cpf, setCpf] = useState('');
@@ -153,6 +158,7 @@ export default function KitCheckout() {
           expiration: data.pix_expiration,
           amount: data.amount,
         });
+        logFunnelEvent('pix_generated', { checkoutGroupId: data.sale_id, productRef: bundle?.id });
         toast({ title: 'PIX gerado!', description: 'Escaneie o QR Code ou copie o código para pagar.' });
       }
     } catch (error: any) {

@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag, Wallet, Package, Bell } from 'lucide-react';
+import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag, Wallet, Package, Bell, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/admin/multitracks', label: 'Multitracks', icon: Music },
   { href: '/admin/bundles', label: 'Kits', icon: Package },
   { href: '/admin/sales', label: 'Vendas', icon: ShoppingCart },
+  { href: '/admin/funnel', label: 'Funil de Vendas', icon: Filter },
   { href: '/admin/financial', label: 'Financeiro', icon: Wallet },
   { href: '/admin/coupons', label: 'Cupons', icon: Tag },
   { href: '/admin/notifications', label: 'Notificações', icon: Bell },

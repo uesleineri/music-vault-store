@@ -84,6 +84,11 @@ const handler = async (req: Request): Promise<Response> => {
       })
     );
 
+    await supabase.from("funnel_events").insert({
+      event_type: "download_completed",
+      checkout_group_id: firstSale.checkout_group_id,
+    });
+
     return new Response(
       JSON.stringify({
         product_name: sales.length === 1 ? (firstSale.bundle?.name ?? null) : null,

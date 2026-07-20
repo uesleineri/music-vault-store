@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Music, Package, Loader2, Copy, Check, QrCode, Tag, X, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,10 +9,19 @@ import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getFunctionErrorMessage } from '@/lib/functionError';
+import { logFunnelEvent } from '@/lib/funnel';
 
 export default function CartCheckout() {
   const { items, totalPrice, clear } = useCart();
   const { toast } = useToast();
+
+  // Fires once on mount, off the cart's contents at that moment - items may
+  // get cleared later (on successful checkout), which shouldn't retroactively
+  // un-fire this.
+  useEffect(() => {
+    if (items.length > 0) logFunnelEvent('checkout_started', { productRef: 'cart' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [cpf, setCpf] = useState('');
@@ -156,6 +165,7 @@ export default function CartCheckout() {
           expiration: data.pix_expiration,
           amount: data.amount,
         });
+        logFunnelEvent('pix_generated', { checkoutGroupId: data.sale_id, productRef: 'cart' });
         // The order is placed - clear the cart now so a refresh/back doesn't re-checkout the same items.
         clear();
         toast({ title: 'PIX gerado!', description: 'Escaneie o QR Code ou copie o código para pagar.' });
