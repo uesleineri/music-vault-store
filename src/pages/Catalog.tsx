@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Music, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Music, ArrowUpDown, ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react';
 import { SearchBar } from '@/components/SearchBar';
 import { MultitrackCard } from '@/components/MultitrackCard';
-import { useMultitracks } from '@/hooks/useMultitracks';
+import { useMultitracks, useMultitrackFilterOptions } from '@/hooks/useMultitracks';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -11,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Pagination,
   PaginationContent,
@@ -22,19 +25,37 @@ import {
 type SortBy = 'created_at' | 'artist_name' | 'song_name' | 'price';
 type SortOrder = 'asc' | 'desc';
 
+// Sentinel for the Select's "no filter" option - Radix Select doesn't allow an empty-string value.
+const ANY = '__any__';
+
 export default function Catalog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  
-  const { data, isLoading } = useMultitracks({ 
-    searchQuery, 
-    page, 
-    pageSize: 12, 
-    sortBy, 
-    sortOrder 
+  const [showFilters, setShowFilters] = useState(false);
+  const [genre, setGenre] = useState('');
+  const [language, setLanguage] = useState('');
+  const [keySignature, setKeySignature] = useState('');
+  const [bpmMin, setBpmMin] = useState('');
+  const [bpmMax, setBpmMax] = useState('');
+
+  const { data: filterOptions } = useMultitrackFilterOptions();
+
+  const { data, isLoading } = useMultitracks({
+    searchQuery,
+    page,
+    pageSize: 12,
+    sortBy,
+    sortOrder,
+    genre: genre || undefined,
+    language: language || undefined,
+    keySignature: keySignature || undefined,
+    bpmMin: bpmMin ? Number(bpmMin) : undefined,
+    bpmMax: bpmMax ? Number(bpmMax) : undefined,
   });
+
+  const hasActiveFilters = !!(genre || language || keySignature || bpmMin || bpmMax);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -45,6 +66,15 @@ export default function Catalog() {
     const [newSortBy, newSortOrder] = value.split('-') as [SortBy, SortOrder];
     setSortBy(newSortBy);
     setSortOrder(newSortOrder);
+    setPage(1);
+  };
+
+  const handleClearFilters = () => {
+    setGenre('');
+    setLanguage('');
+    setKeySignature('');
+    setBpmMin('');
+    setBpmMax('');
     setPage(1);
   };
 
@@ -106,10 +136,10 @@ export default function Catalog() {
           <SearchBar onSearch={handleSearch} className="md:w-96" />
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-          <Select 
-            value={`${sortBy}-${sortOrder}`} 
+          <Select
+            value={`${sortBy}-${sortOrder}`}
             onValueChange={handleSortChange}
           >
             <SelectTrigger className="w-[200px]">
@@ -126,7 +156,97 @@ export default function Catalog() {
               <SelectItem value="price-desc">Maior preço</SelectItem>
             </SelectContent>
           </Select>
+
+          <Button
+            variant={hasActiveFilters ? 'default' : 'outline'}
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filtros avançados
+          </Button>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={handleClearFilters}>
+              <X className="h-3.5 w-3.5" />
+              Limpar filtros
+            </Button>
+          )}
         </div>
+
+        {showFilters && (
+            <Card>
+              <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Gênero/Estilo</Label>
+                  <Select value={genre || ANY} onValueChange={(v) => { setGenre(v === ANY ? '' : v); setPage(1); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ANY}>Todos</SelectItem>
+                      {filterOptions?.genres.map((g) => (
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Idioma</Label>
+                  <Select value={language || ANY} onValueChange={(v) => { setLanguage(v === ANY ? '' : v); setPage(1); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ANY}>Todos</SelectItem>
+                      {filterOptions?.languages.map((l) => (
+                        <SelectItem key={l} value={l}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Tom</Label>
+                  <Select value={keySignature || ANY} onValueChange={(v) => { setKeySignature(v === ANY ? '' : v); setPage(1); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ANY}>Todos</SelectItem>
+                      {filterOptions?.keySignatures.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>BPM mínimo</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Ex: 70"
+                    value={bpmMin}
+                    onChange={(e) => { setBpmMin(e.target.value); setPage(1); }}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>BPM máximo</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Ex: 140"
+                    value={bpmMax}
+                    onChange={(e) => { setBpmMax(e.target.value); setPage(1); }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+        )}
       </div>
 
       {isLoading ? (

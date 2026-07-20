@@ -131,10 +131,14 @@ export type Database = {
       multitracks: {
         Row: {
           artist_name: string
+          bpm: number | null
           cover_url: string | null
           created_at: string
           file_url: string
+          genre: string | null
           id: string
+          key_signature: string | null
+          language: string | null
           preview_url: string | null
           price: number
           song_name: string
@@ -142,10 +146,14 @@ export type Database = {
         }
         Insert: {
           artist_name: string
+          bpm?: number | null
           cover_url?: string | null
           created_at?: string
           file_url: string
+          genre?: string | null
           id?: string
+          key_signature?: string | null
+          language?: string | null
           preview_url?: string | null
           price: number
           song_name: string
@@ -153,10 +161,14 @@ export type Database = {
         }
         Update: {
           artist_name?: string
+          bpm?: number | null
           cover_url?: string | null
           created_at?: string
           file_url?: string
+          genre?: string | null
           id?: string
+          key_signature?: string | null
+          language?: string | null
           preview_url?: string | null
           price?: number
           song_name?: string

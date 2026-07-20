@@ -7,6 +7,11 @@ export interface Multitrack {
   file_url: string;
   preview_url: string | null;
   is_active: boolean;
+  // Advanced-search metadata - all optional, may be null on older/unfilled rows.
+  genre: string | null;
+  key_signature: string | null;
+  bpm: number | null;
+  language: string | null;
   created_at: string;
   updated_at: string;
 }

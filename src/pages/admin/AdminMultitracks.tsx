@@ -85,6 +85,10 @@ export default function AdminMultitracks() {
     artist_name: '',
     song_name: '',
     price: '',
+    genre: '',
+    key_signature: '',
+    bpm: '',
+    language: '',
   });
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
@@ -99,7 +103,7 @@ export default function AdminMultitracks() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   const resetForm = () => {
-    setFormData({ artist_name: '', song_name: '', price: '' });
+    setFormData({ artist_name: '', song_name: '', price: '', genre: '', key_signature: '', bpm: '', language: '' });
     setCoverFile(null);
     setCoverPreviewUrl(null);
     setCoverOptions([]);
@@ -114,6 +118,10 @@ export default function AdminMultitracks() {
       artist_name: multitrack.artist_name,
       song_name: multitrack.song_name,
       price: multitrack.price.toString(),
+      genre: multitrack.genre ?? '',
+      key_signature: multitrack.key_signature ?? '',
+      bpm: multitrack.bpm != null ? String(multitrack.bpm) : '',
+      language: multitrack.language ?? '',
     });
     setCoverPreviewUrl(multitrack.cover_url);
     setIsDialogOpen(true);
@@ -288,6 +296,11 @@ export default function AdminMultitracks() {
       setCurrentUploadStep('Salvando dados...');
       setUploadProgress(100);
 
+      const genre = formData.genre.trim() || null;
+      const keySignature = formData.key_signature.trim() || null;
+      const bpm = formData.bpm.trim() ? parseInt(formData.bpm, 10) : null;
+      const language = formData.language.trim() || null;
+
       if (editingMultitrack) {
         // Update existing multitrack
         await updateMultitrack.mutateAsync({
@@ -298,6 +311,10 @@ export default function AdminMultitracks() {
           file_url: fileUrl,
           cover_url: coverUrl,
           preview_url: previewUrl,
+          genre,
+          key_signature: keySignature,
+          bpm,
+          language,
         });
 
         toast({
@@ -314,6 +331,10 @@ export default function AdminMultitracks() {
           cover_url: coverUrl,
           preview_url: previewUrl,
           is_active: true,
+          genre,
+          key_signature: keySignature,
+          bpm,
+          language,
         });
 
         toast({
@@ -424,6 +445,48 @@ export default function AdminMultitracks() {
                 <p className="text-xs text-muted-foreground">
                   Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.
                 </p>
+              </div>
+
+              {/* Advanced-search metadata - all optional */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="genre">Gênero/Estilo</Label>
+                  <Input
+                    id="genre"
+                    placeholder="Ex: Louvor"
+                    value={formData.genre}
+                    onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="language">Idioma</Label>
+                  <Input
+                    id="language"
+                    placeholder="Ex: Português"
+                    value={formData.language}
+                    onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="key_signature">Tom</Label>
+                  <Input
+                    id="key_signature"
+                    placeholder="Ex: G"
+                    value={formData.key_signature}
+                    onChange={(e) => setFormData({ ...formData, key_signature: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bpm">BPM</Label>
+                  <Input
+                    id="bpm"
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 96"
+                    value={formData.bpm}
+                    onChange={(e) => setFormData({ ...formData, bpm: e.target.value })}
+                  />
+                </div>
               </div>
               
               {/* Cover Section */}

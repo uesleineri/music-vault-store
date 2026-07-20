@@ -10,6 +10,12 @@ interface MultitracksParams {
   sortOrder?: 'asc' | 'desc';
   // Admin views pass this to see unpublished multitracks too.
   includeInactive?: boolean;
+  // Advanced search filters - all optional, undefined means "don't filter on this".
+  genre?: string;
+  language?: string;
+  keySignature?: string;
+  bpmMin?: number;
+  bpmMax?: number;
 }
 
 export function useMultitracks(params: MultitracksParams = {}) {
@@ -20,10 +26,15 @@ export function useMultitracks(params: MultitracksParams = {}) {
     sortBy = 'created_at',
     sortOrder = 'desc',
     includeInactive = false,
+    genre,
+    language,
+    keySignature,
+    bpmMin,
+    bpmMax,
   } = params;
 
   return useQuery({
-    queryKey: ['multitracks', searchQuery, page, pageSize, sortBy, sortOrder, includeInactive],
+    queryKey: ['multitracks', searchQuery, page, pageSize, sortBy, sortOrder, includeInactive, genre, language, keySignature, bpmMin, bpmMax],
     queryFn: async () => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -48,6 +59,12 @@ export function useMultitracks(params: MultitracksParams = {}) {
         }
       }
 
+      if (genre) query = query.eq('genre', genre);
+      if (language) query = query.eq('language', language);
+      if (keySignature) query = query.eq('key_signature', keySignature);
+      if (bpmMin != null) query = query.gte('bpm', bpmMin);
+      if (bpmMax != null) query = query.lte('bpm', bpmMax);
+
       const { data, error, count } = await query;
       if (error) throw error;
 
@@ -56,6 +73,31 @@ export function useMultitracks(params: MultitracksParams = {}) {
         totalCount: count || 0,
         totalPages: Math.ceil((count || 0) / pageSize),
         currentPage: page,
+      };
+    },
+  });
+}
+
+// Populates the advanced-search dropdowns with whatever values are actually
+// in use in the published catalog, instead of a hardcoded list that drifts
+// from reality as admins add new genres/languages/keys over time.
+export function useMultitrackFilterOptions() {
+  return useQuery({
+    queryKey: ['multitrack-filter-options'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('multitracks')
+        .select('genre, language, key_signature')
+        .eq('is_active', true);
+      if (error) throw error;
+
+      const dedupe = (values: (string | null)[]) =>
+        Array.from(new Set(values.filter((v): v is string => !!v))).sort();
+
+      return {
+        genres: dedupe(data.map((m) => m.genre)),
+        languages: dedupe(data.map((m) => m.language)),
+        keySignatures: dedupe(data.map((m) => m.key_signature)),
       };
     },
   });
