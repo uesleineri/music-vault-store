@@ -40,6 +40,9 @@ import { sanitizeFileName, uploadAudioToDrive, uploadToSupabaseStorage } from '@
 import { BulkImportDialog } from '@/components/admin/BulkImportDialog';
 
 const PAGE_SIZE = 10;
+// Asaas rejects any PIX charge under R$5 outright - create-payment enforces
+// this too, but blocking it here avoids a checkout ever failing on it.
+const MIN_PRICE = 5;
 
 export default function AdminMultitracks() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,6 +178,15 @@ export default function AdminMultitracks() {
       toast({
         title: 'Arquivo obrigatório',
         description: 'Selecione o arquivo da multitrack.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (parseFloat(formData.price) < MIN_PRICE) {
+      toast({
+        title: 'Preço muito baixo',
+        description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
         variant: 'destructive',
       });
       return;
@@ -404,11 +416,14 @@ export default function AdminMultitracks() {
                   id="price"
                   type="number"
                   step="0.01"
-                  min="0"
+                  min={MIN_PRICE}
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.
+                </p>
               </div>
               
               {/* Cover Section */}

@@ -182,6 +182,15 @@ const handler = async (req: Request): Promise<Response> => {
       couponId = couponResult.coupon.id;
     }
 
+    // Asaas rejects any PIX charge under R$5 outright - catch it here with a
+    // clear message instead of surfacing Asaas' raw API error to the buyer.
+    if (totalAmount > 0 && totalAmount < 5) {
+      return new Response(
+        JSON.stringify({ error: `O total da compra (R$ ${totalAmount.toFixed(2).replace(".", ",")}) precisa ser de pelo menos R$ 5,00 - é o mínimo aceito para pagamento via PIX.` }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Split the coupon discount across items proportionally to their price,
     // so each sales row still reports its own real amount/discount - the last
     // item absorbs the rounding remainder so the split sums exactly.
