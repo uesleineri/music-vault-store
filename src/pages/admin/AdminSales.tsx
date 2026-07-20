@@ -36,6 +36,7 @@ import {
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 import { useSales, countOrders } from '@/hooks/useSales';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -94,8 +95,9 @@ export default function AdminSales() {
         });
       }
     },
-    onError: (error: any) => {
-      toast({ title: 'Erro ao verificar pagamento', description: error.message, variant: 'destructive' });
+    onError: async (error: any) => {
+      const description = await getFunctionErrorMessage(error);
+      toast({ title: 'Erro ao verificar pagamento', description, variant: 'destructive' });
     },
   });
 
@@ -110,8 +112,9 @@ export default function AdminSales() {
     onSuccess: (data) => {
       toast({ title: 'Download reenviado!', description: `E-mail enviado para ${data.sent_to}.` });
     },
-    onError: (error: any) => {
-      toast({ title: 'Erro ao reenviar download', description: error.message, variant: 'destructive' });
+    onError: async (error: any) => {
+      const description = await getFunctionErrorMessage(error);
+      toast({ title: 'Erro ao reenviar download', description, variant: 'destructive' });
     },
   });
 

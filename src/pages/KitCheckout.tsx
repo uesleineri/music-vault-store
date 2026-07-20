@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useBundle } from '@/hooks/useBundles';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 
 export default function KitCheckout() {
   const { id } = useParams<{ id: string }>();
@@ -87,7 +88,7 @@ export default function KitCheckout() {
       });
       toast({ title: 'Cupom aplicado!', description: `Desconto de R$ ${data.discount_amount.toFixed(2).replace('.', ',')}` });
     } catch (error: any) {
-      toast({ title: 'Erro ao validar cupom', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao validar cupom', description: await getFunctionErrorMessage(error), variant: 'destructive' });
     } finally {
       setIsCheckingCoupon(false);
     }
@@ -156,7 +157,7 @@ export default function KitCheckout() {
       }
     } catch (error: any) {
       console.error('Payment error:', error);
-      toast({ title: 'Erro ao processar', description: error.message || 'Tente novamente.', variant: 'destructive' });
+      toast({ title: 'Erro ao processar', description: await getFunctionErrorMessage(error), variant: 'destructive' });
     } finally {
       setIsProcessing(false);
     }

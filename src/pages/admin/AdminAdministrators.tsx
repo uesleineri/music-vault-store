@@ -32,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -81,8 +82,9 @@ export default function AdminAdministrators() {
       setIsDialogOpen(false);
       setNewEmail('');
     },
-    onError: (error: any) => {
-      toast({ title: 'Erro ao adicionar administrador', description: error.message, variant: 'destructive' });
+    onError: async (error: any) => {
+      const description = await getFunctionErrorMessage(error);
+      toast({ title: 'Erro ao adicionar administrador', description, variant: 'destructive' });
     },
   });
 
@@ -99,8 +101,9 @@ export default function AdminAdministrators() {
       toast({ title: 'Administrador removido' });
       queryClient.invalidateQueries({ queryKey: ['admins'] });
     },
-    onError: (error: any) => {
-      toast({ title: 'Erro ao remover administrador', description: error.message, variant: 'destructive' });
+    onError: async (error: any) => {
+      const description = await getFunctionErrorMessage(error);
+      toast({ title: 'Erro ao remover administrador', description, variant: 'destructive' });
     },
   });
 

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 
 // Remove accents/special chars so the Drive filename stays predictable.
 export function sanitizeFileName(name: string) {
@@ -28,7 +29,8 @@ export async function uploadAudioToDrive(
   });
 
   if (initError || !data?.resumable_url) {
-    return { driveFileId: null, error: new Error(initError?.message || 'Falha ao iniciar upload no Drive') };
+    const message = initError ? await getFunctionErrorMessage(initError) : 'Falha ao iniciar upload no Drive';
+    return { driveFileId: null, error: new Error(message) };
   }
 
   return new Promise((resolve) => {
