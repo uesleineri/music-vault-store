@@ -135,6 +135,18 @@ async function resendShareNotification(
   return shareFileWithUser(fileId, email, accessToken, expirationTime);
 }
 
+// Revokes a specific user's access to a file - e.g. once its download
+// window has passed for good (see revoke-expired-shares), since Drive's own
+// per-permission `expirationTime` is silently ignored on a personal (non-
+// Workspace) account. A no-op if they were never shared with directly.
+async function revokeAccessForUser(fileId: string, email: string, accessToken: string) {
+  const permissions = await listPermissions(fileId, accessToken);
+  const existing = permissions.find(
+    (p: any) => p.type === "user" && p.emailAddress?.toLowerCase() === email.toLowerCase()
+  );
+  if (existing) await deletePermission(fileId, existing.id, accessToken);
+}
+
 async function getFile(fileId: string, accessToken: string, fields = "id,name,webViewLink,size") {
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?fields=${fields}`,
@@ -228,5 +240,6 @@ export const googleDrive = {
   getFile,
   shareFileWithUser,
   resendShareNotification,
+  revokeAccessForUser,
   getAppFolderUsage,
 };
