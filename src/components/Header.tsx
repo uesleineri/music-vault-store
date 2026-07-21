@@ -20,7 +20,7 @@ export function Header() {
             <Button variant="ghost">Kits</Button>
           </Link>
           <Link to="/minha-conta">
-            <Button variant="ghost">Minha Conta</Button>
+            <Button variant="outline">Minha Conta</Button>
           </Link>
           <CartDrawer />
           <ThemeToggle />
