@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Music } from 'lucide-react';
+import { Music, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -18,6 +18,11 @@ export function Header() {
           </Link>
           <Link to="/kits">
             <Button variant="ghost">Kits</Button>
+          </Link>
+          <Link to="/minha-conta">
+            <Button variant="ghost" size="icon" aria-label="Minha Conta">
+              <User className="h-5 w-5" />
+            </Button>
           </Link>
           <CartDrawer />
           <ThemeToggle />

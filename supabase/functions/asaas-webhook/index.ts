@@ -4,6 +4,7 @@ import { googleDrive } from "../_shared/google-drive.ts";
 import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
 import { distributeFee, describeGroup } from "../_shared/checkout-group.ts";
+import { ensureCustomerAccount } from "../_shared/customer-account.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   try {
@@ -103,6 +104,12 @@ const handler = async (req: Request): Promise<Response> => {
         // Don't fail the webhook (Asaas would retry) if sharing hiccups -
         // get-download retries the share as a fallback when the buyer opens the link.
         console.error("Failed to share Drive file(s) with buyer:", shareError);
+      }
+
+      try {
+        await ensureCustomerAccount(supabase, buyerEmail);
+      } catch (accountError) {
+        console.error("Failed to create/invite customer account:", accountError);
       }
     }
 

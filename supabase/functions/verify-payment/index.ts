@@ -5,6 +5,7 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
 import { distributeFee, describeGroup } from "../_shared/checkout-group.ts";
+import { ensureCustomerAccount } from "../_shared/customer-account.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -152,6 +153,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     } catch (shareError) {
       console.error("Failed to share Drive file(s) after manual verification:", shareError);
+    }
+
+    try {
+      await ensureCustomerAccount(supabase, sale.buyer_email);
+    } catch (accountError) {
+      console.error("Failed to create/invite customer account:", accountError);
     }
 
     return new Response(

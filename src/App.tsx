@@ -21,6 +21,8 @@ import KitCheckout from "@/pages/KitCheckout";
 import Cart from "@/pages/Cart";
 import CartCheckout from "@/pages/CartCheckout";
 import DownloadPage from "@/pages/DownloadPage";
+import MyAccount from "@/pages/MyAccount";
+import SetPassword from "@/pages/SetPassword";
 import NotFound from "@/pages/NotFound";
 
 // Admin pages
@@ -58,6 +60,8 @@ const App = () => (
             <Route path="/checkout/kit/:id" element={<KitCheckout />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<CartCheckout />} />
+            <Route path="/minha-conta" element={<MyAccount />} />
+            <Route path="/minha-conta/definir-senha" element={<SetPassword />} />
           </Route>
 
           {/* Download page (no layout) */}
