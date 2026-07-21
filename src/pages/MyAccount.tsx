@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCustomerAuth } from '@/hooks/useCustomerAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { ReviewDialog } from '@/components/ReviewDialog';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -159,6 +160,14 @@ export default function MyAccount() {
                     <Link to={`/download/${sale.download_token}`}>
                       <Button size="sm" variant="ghost">Baixar</Button>
                     </Link>
+                  )}
+                  {sale.payment_status === 'paid' && (
+                    <ReviewDialog
+                      buyerEmail={user.email!}
+                      productName={name}
+                      multitrackId={sale.multitrack_id}
+                      bundleId={sale.bundle_id}
+                    />
                   )}
                 </CardContent>
               </Card>

@@ -58,6 +58,27 @@ export interface Sale {
   bundle?: Bundle;
 }
 
+export interface Review {
+  id: string;
+  multitrack_id: string | null;
+  bundle_id: string | null;
+  buyer_email: string;
+  reviewer_name: string;
+  rating: number;
+  comment: string | null;
+  is_approved: boolean;
+  created_at: string;
+  multitrack?: Multitrack;
+  bundle?: Bundle;
+}
+
+export interface ReviewSummary {
+  multitrack_id: string | null;
+  bundle_id: string | null;
+  review_count: number;
+  average_rating: number;
+}
+
 export interface AdminUser {
   id: string;
   user_id: string;

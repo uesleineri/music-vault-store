@@ -272,9 +272,68 @@ export type Database = {
           },
         ]
       }
+      reviews: {
+        Row: {
+          bundle_id: string | null
+          buyer_email: string
+          comment: string | null
+          created_at: string
+          id: string
+          is_approved: boolean
+          multitrack_id: string | null
+          rating: number
+          reviewer_name: string
+        }
+        Insert: {
+          bundle_id?: string | null
+          buyer_email: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+          multitrack_id?: string | null
+          rating: number
+          reviewer_name: string
+        }
+        Update: {
+          bundle_id?: string | null
+          buyer_email?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+          multitrack_id?: string | null
+          rating?: number
+          reviewer_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_multitrack_id_fkey"
+            columns: ["multitrack_id"]
+            isOneToOne: false
+            referencedRelation: "multitracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "bundles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      review_summaries: {
+        Row: {
+          average_rating: number | null
+          bundle_id: string | null
+          multitrack_id: string | null
+          review_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_frequently_bought_with: {

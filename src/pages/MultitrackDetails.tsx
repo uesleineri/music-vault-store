@@ -1,10 +1,14 @@
 import { useParams, Link } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { ArrowLeft, Music, ShoppingCart, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { MultitrackCard } from '@/components/MultitrackCard';
+import { StarRating } from '@/components/StarRating';
 import { useMultitrack, useRecommendations } from '@/hooks/useMultitracks';
+import { useProductReviews, useReviewSummaries } from '@/hooks/useReviews';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -12,8 +16,14 @@ export default function MultitrackDetails() {
   const { id } = useParams<{ id: string }>();
   const { data: multitrack, isLoading } = useMultitrack(id || '');
   const { data: recommendations } = useRecommendations(id || '', multitrack?.artist_name, multitrack?.genre);
+  const { data: reviews } = useProductReviews({ multitrackId: id || '' });
+  const { data: reviewSummaries } = useReviewSummaries();
   const { addItem } = useCart();
   const { toast } = useToast();
+
+  const averageRating = reviews && reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : null;
 
   const handleAddToCart = () => {
     if (!multitrack) return;
@@ -91,7 +101,16 @@ export default function MultitrackDetails() {
         {/* Details */}
         <div className="flex flex-col">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">{multitrack.song_name}</h1>
-          <p className="text-xl text-muted-foreground mb-6">{multitrack.artist_name}</p>
+          <p className="text-xl text-muted-foreground mb-2">{multitrack.artist_name}</p>
+          {averageRating !== null && (
+            <div className="flex items-center gap-2 mb-6">
+              <StarRating value={Math.round(averageRating)} size="sm" />
+              <span className="text-sm text-muted-foreground">
+                {averageRating.toFixed(1)} ({reviews!.length} avaliaç{reviews!.length === 1 ? 'ão' : 'ões'})
+              </span>
+            </div>
+          )}
+          {averageRating === null && <div className="mb-6" />}
 
           {/* Preview Player */}
           {multitrack.preview_url && (
@@ -126,12 +145,34 @@ export default function MultitrackDetails() {
         </div>
       </div>
 
+      {reviews && reviews.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-2xl font-bold mb-6">Avaliações</h2>
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <Card key={review.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">{review.reviewer_name}</span>
+                    <StarRating value={review.rating} size="sm" />
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {format(new Date(review.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                  </p>
+                  {review.comment && <p className="text-sm">{review.comment}</p>}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       {recommendations && recommendations.length > 0 && (
         <div className="mt-16">
           <h2 className="text-2xl font-bold mb-6">Você também pode gostar</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {recommendations.map((rec) => (
-              <MultitrackCard key={rec.id} multitrack={rec} />
+              <MultitrackCard key={rec.id} multitrack={rec} reviewSummary={reviewSummaries?.get(rec.id)} />
             ))}
           </div>
         </div>

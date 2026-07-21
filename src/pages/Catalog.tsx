@@ -3,6 +3,7 @@ import { Music, ArrowUpDown, ChevronLeft, ChevronRight, SlidersHorizontal, X } f
 import { SearchBar } from '@/components/SearchBar';
 import { MultitrackCard } from '@/components/MultitrackCard';
 import { useMultitracks, useMultitrackFilterOptions } from '@/hooks/useMultitracks';
+import { useReviewSummaries } from '@/hooks/useReviews';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +42,7 @@ export default function Catalog() {
   const [bpmMax, setBpmMax] = useState('');
 
   const { data: filterOptions } = useMultitrackFilterOptions();
+  const { data: reviewSummaries } = useReviewSummaries();
 
   const { data, isLoading } = useMultitracks({
     searchQuery,
@@ -263,7 +265,7 @@ export default function Catalog() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {data.data.map((multitrack) => (
-              <MultitrackCard key={multitrack.id} multitrack={multitrack} />
+              <MultitrackCard key={multitrack.id} multitrack={multitrack} reviewSummary={reviewSummaries?.get(multitrack.id)} />
             ))}
           </div>
           

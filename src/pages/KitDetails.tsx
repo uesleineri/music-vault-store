@@ -1,16 +1,25 @@
 import { useParams, Link } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { ArrowLeft, Package, ShoppingCart, Music, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { StarRating } from '@/components/StarRating';
 import { useBundle } from '@/hooks/useBundles';
+import { useProductReviews } from '@/hooks/useReviews';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 
 export default function KitDetails() {
   const { id } = useParams<{ id: string }>();
   const { data: bundle, isLoading } = useBundle(id || '');
+  const { data: reviews } = useProductReviews({ bundleId: id || '' });
   const { addItem } = useCart();
   const { toast } = useToast();
+
+  const averageRating = reviews && reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : null;
 
   const handleAddToCart = () => {
     if (!bundle) return;
@@ -83,8 +92,17 @@ export default function KitDetails() {
         <div className="flex flex-col">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">{bundle.name}</h1>
           {bundle.description && (
-            <p className="text-muted-foreground mb-6">{bundle.description}</p>
+            <p className="text-muted-foreground mb-2">{bundle.description}</p>
           )}
+          {averageRating !== null && (
+            <div className="flex items-center gap-2 mb-6">
+              <StarRating value={Math.round(averageRating)} size="sm" />
+              <span className="text-sm text-muted-foreground">
+                {averageRating.toFixed(1)} ({reviews!.length} avaliaç{reviews!.length === 1 ? 'ão' : 'ões'})
+              </span>
+            </div>
+          )}
+          {averageRating === null && <div className="mb-6" />}
 
           <Card className="mb-6">
             <CardContent className="p-4">
@@ -125,6 +143,28 @@ export default function KitDetails() {
           </p>
         </div>
       </div>
+
+      {reviews && reviews.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-2xl font-bold mb-6">Avaliações</h2>
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <Card key={review.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">{review.reviewer_name}</span>
+                    <StarRating value={review.rating} size="sm" />
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {format(new Date(review.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                  </p>
+                  {review.comment && <p className="text-sm">{review.comment}</p>}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { BundleCard } from '@/components/BundleCard';
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
 import { useMultitracks } from '@/hooks/useMultitracks';
 import { useBundles } from '@/hooks/useBundles';
+import { useReviewSummaries } from '@/hooks/useReviews';
 
 // Stable reference - embla-carousel-react reinitializes (resetting scroll
 // position) whenever this object's identity changes, so it can't be an
@@ -20,6 +21,7 @@ export default function Home() {
   // something to scroll to.
   const { data, isLoading } = useMultitracks({ searchQuery, pageSize: 12 });
   const { data: bundles } = useBundles();
+  const { data: reviewSummaries } = useReviewSummaries();
 
   const featuredMultitracks = data?.data || [];
 
@@ -73,7 +75,7 @@ export default function Home() {
             <CarouselContent>
               {featuredMultitracks.map((multitrack) => (
                 <CarouselItem key={multitrack.id} className="sm:basis-1/2 lg:basis-1/4">
-                  <MultitrackCard multitrack={multitrack} />
+                  <MultitrackCard multitrack={multitrack} reviewSummary={reviewSummaries?.get(multitrack.id)} />
                 </CarouselItem>
               ))}
             </CarouselContent>
@@ -109,7 +111,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {bundles.map((bundle) => (
-              <BundleCard key={bundle.id} bundle={bundle} />
+              <BundleCard key={bundle.id} bundle={bundle} reviewSummary={reviewSummaries?.get(bundle.id)} />
             ))}
           </div>
         </section>

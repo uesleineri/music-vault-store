@@ -1,9 +1,10 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag, Wallet, Package, Bell, Filter } from 'lucide-react';
+import { LayoutDashboard, Music, ShoppingCart, LogOut, Users, History, Tag, Wallet, Package, Bell, Filter, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminNotificationsProvider, useAdminNotificationsContext } from '@/contexts/AdminNotificationsContext';
+import { usePendingReviewsCount } from '@/hooks/useReviews';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -14,6 +15,7 @@ const navItems = [
   { href: '/admin/funnel', label: 'Funil de Vendas', icon: Filter },
   { href: '/admin/financial', label: 'Financeiro', icon: Wallet },
   { href: '/admin/coupons', label: 'Cupons', icon: Tag },
+  { href: '/admin/reviews', label: 'Avaliações', icon: Star },
   { href: '/admin/notifications', label: 'Notificações', icon: Bell },
   { href: '/admin/administrators', label: 'Administradores', icon: Users },
   { href: '/admin/audit-logs', label: 'Logs de Auditoria', icon: History },
@@ -23,6 +25,7 @@ function AdminLayoutContent() {
   const location = useLocation();
   const { signOut } = useAuth();
   const { unreadCount } = useAdminNotificationsContext();
+  const { data: pendingReviewsCount } = usePendingReviewsCount();
 
   return (
     <div className="min-h-screen flex">
@@ -39,6 +42,8 @@ function AdminLayoutContent() {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             const isNotifications = item.href === '/admin/notifications';
+            const isReviews = item.href === '/admin/reviews';
+            const badgeCount = isNotifications ? unreadCount : isReviews ? pendingReviewsCount ?? 0 : 0;
             return (
               <Link
                 key={item.href}
@@ -52,9 +57,9 @@ function AdminLayoutContent() {
               >
                 <Icon className="h-4 w-4" />
                 <span className="flex-1">{item.label}</span>
-                {isNotifications && unreadCount > 0 && (
+                {badgeCount > 0 && (
                   <span className="h-5 min-w-5 rounded-full bg-destructive px-1.5 text-[11px] font-medium text-destructive-foreground flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                    {badgeCount > 9 ? '9+' : badgeCount}
                   </span>
                 )}
               </Link>

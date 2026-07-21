@@ -1,16 +1,17 @@
 import { Link } from 'react-router-dom';
-import { Package } from 'lucide-react';
+import { Package, Star } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bundle } from '@/types/multitrack';
+import { Bundle, ReviewSummary } from '@/types/multitrack';
 import { cn } from '@/lib/utils';
 
 interface BundleCardProps {
   bundle: Bundle;
+  reviewSummary?: ReviewSummary;
   className?: string;
 }
 
-export function BundleCard({ bundle, className }: BundleCardProps) {
+export function BundleCard({ bundle, reviewSummary, className }: BundleCardProps) {
   return (
     <Link to={`/kit/${bundle.id}`}>
       <Card className={cn('group overflow-hidden transition-all hover:shadow-lg hover:-translate-y-1', className)}>
@@ -32,6 +33,14 @@ export function BundleCard({ bundle, className }: BundleCardProps) {
           <h3 className="font-semibold truncate">{bundle.name}</h3>
           {bundle.description && (
             <p className="text-sm text-muted-foreground truncate">{bundle.description}</p>
+          )}
+          {reviewSummary && (
+            <div className="flex items-center gap-1 mt-1">
+              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+              <span className="text-xs text-muted-foreground">
+                {reviewSummary.average_rating} ({reviewSummary.review_count})
+              </span>
+            </div>
           )}
           <div className="flex items-center justify-between mt-3">
             <span className="text-lg font-bold">

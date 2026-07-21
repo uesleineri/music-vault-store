@@ -1,9 +1,11 @@
 import { Package } from 'lucide-react';
 import { BundleCard } from '@/components/BundleCard';
 import { useBundles } from '@/hooks/useBundles';
+import { useReviewSummaries } from '@/hooks/useReviews';
 
 export default function Kits() {
   const { data: bundles, isLoading } = useBundles();
+  const { data: reviewSummaries } = useReviewSummaries();
 
   return (
     <div className="container py-8 animate-fade-in">
@@ -27,7 +29,7 @@ export default function Kits() {
       ) : bundles && bundles.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {bundles.map((bundle) => (
-            <BundleCard key={bundle.id} bundle={bundle} />
+            <BundleCard key={bundle.id} bundle={bundle} reviewSummary={reviewSummaries?.get(bundle.id)} />
           ))}
         </div>
       ) : (
