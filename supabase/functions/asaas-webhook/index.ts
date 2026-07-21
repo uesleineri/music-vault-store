@@ -5,6 +5,7 @@ import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
 import { distributeFee, describeGroup } from "../_shared/checkout-group.ts";
 import { ensureCustomerAccount } from "../_shared/customer-account.ts";
+import { notifyAdmins } from "../_shared/admin-notifications.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   try {
@@ -77,6 +78,8 @@ const handler = async (req: Request): Promise<Response> => {
         event_type: "payment_confirmed",
         checkout_group_id: externalReference,
       });
+
+      await notifyAdmins(supabase, "payment_confirmed", sales, buyerEmail);
 
       await logAudit(supabase, req, {
         actorId: null,

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { validateCoupon } from "../_shared/coupons.ts";
+import { notifyAdmins } from "../_shared/admin-notifications.ts";
 
 interface CartItemRequest {
   // Exactly one of these two must be sent per item.
@@ -325,6 +326,8 @@ const handler = async (req: Request): Promise<Response> => {
       .from("sales")
       .update({ payment_id: payment.id })
       .eq("checkout_group_id", checkoutGroupId);
+
+    await notifyAdmins(supabase, "new_sale", sales, buyer_email);
 
     // Get PIX QR Code
     const pixResponse = await fetch(

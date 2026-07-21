@@ -6,6 +6,7 @@ import { logAudit } from "../_shared/audit.ts";
 import { getSaleItems } from "../_shared/sale-items.ts";
 import { distributeFee, describeGroup } from "../_shared/checkout-group.ts";
 import { ensureCustomerAccount } from "../_shared/customer-account.ts";
+import { notifyAdmins } from "../_shared/admin-notifications.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
@@ -131,6 +132,8 @@ const handler = async (req: Request): Promise<Response> => {
       event_type: "payment_confirmed",
       checkout_group_id: sale.checkout_group_id,
     });
+
+    await notifyAdmins(supabase, "payment_confirmed", updatedSales, sale.buyer_email);
 
     await logAudit(supabase, req, {
       actorId: user.id,

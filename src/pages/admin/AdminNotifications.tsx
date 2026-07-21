@@ -18,7 +18,7 @@ export default function AdminNotifications() {
       <div>
         <h2 className="text-2xl font-bold">Notificações</h2>
         <p className="text-muted-foreground">
-          Novos pedidos e pagamentos confirmados desde que você abriu o painel
+          Histórico de novos pedidos e pagamentos confirmados
         </p>
       </div>
 
@@ -29,8 +29,8 @@ export default function AdminNotifications() {
               <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="font-semibold mb-1">Nenhuma notificação</h3>
               <p className="text-muted-foreground">
-                Nada aconteceu ainda nesta sessão - assim que houver um pedido novo ou um pagamento
-                confirmado, ele aparece aqui.
+                Nada por aqui ainda - assim que houver um pedido novo ou um pagamento confirmado,
+                ele aparece aqui.
               </p>
             </div>
           ) : (

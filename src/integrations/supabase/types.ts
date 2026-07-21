@@ -32,6 +32,33 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_notifications: {
+        Row: {
+          checkout_group_id: string | null
+          created_at: string
+          id: string
+          message: string
+          read: boolean
+          type: string
+        }
+        Insert: {
+          checkout_group_id?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean
+          type: string
+        }
+        Update: {
+          checkout_group_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean
+          type?: string
+        }
+        Relationships: []
+      }
       funnel_events: {
         Row: {
           checkout_group_id: string | null

@@ -46,6 +46,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { sanitizeFileName, uploadToSupabaseStorage } from '@/lib/driveUpload';
 import { Bundle } from '@/types/multitrack';
 
+const MIN_PRICE = 5;
+
 export default function AdminBundles() {
   const { data: bundles, isLoading } = useBundles({ includeInactive: true });
   const { data: allMultitracks } = useMultitracks({ includeInactive: true, pageSize: 500 });
@@ -117,6 +119,15 @@ export default function AdminBundles() {
       toast({
         title: 'Selecione ao menos 2 músicas',
         description: 'Um kit precisa agrupar mais de uma multitrack.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (parseFloat(formData.price) < MIN_PRICE) {
+      toast({
+        title: 'Preço muito baixo',
+        description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
         variant: 'destructive',
       });
       return;
@@ -234,11 +245,14 @@ export default function AdminBundles() {
                   id="price"
                   type="number"
                   step="0.01"
-                  min="0"
+                  min={MIN_PRICE}
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.
+                </p>
               </div>
 
               <div className="space-y-2">
