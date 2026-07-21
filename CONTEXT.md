@@ -1,19 +1,18 @@
 # Contexto do projeto — Gospel VS (music-vault-store)
 
-> Documento de continuidade. Escrito ao final de uma sessão longa de trabalho pra quem (você ou uma
-> IA assistente) retomar o projeto do zero, sem precisar reconstruir esse histórico do zero.
+> Documento de continuidade. Escrito ao final de sessões longas de trabalho pra quem (você ou uma
+> IA assistente) retomar o projeto sem precisar reconstruir esse histórico do zero.
 > **Não contém segredos reais** (senhas, chaves, tokens) — só indica onde cada um está guardado.
 
 ## Sumário
 
 - [O que é o projeto](#o-que-é-o-projeto)
-- [Linha do tempo desta sessão](#linha-do-tempo-desta-sessão)
+- [Linha do tempo](#linha-do-tempo)
 - [Estado atual da infraestrutura](#estado-atual-da-infraestrutura)
 - [Onde estão as credenciais](#onde-estão-as-credenciais)
 - [O que já foi implementado](#o-que-já-foi-implementado)
-- [Segurança — o que foi corrigido](#segurança--o-que-foi-corrigido)
-- [Bugs corrigidos](#bugs-corrigidos)
-- [Pendências reais (bloqueiam produção)](#pendências-reais-bloqueiam-produção)
+- [Segurança](#segurança)
+- [Pendências reais (bloqueiam produção real)](#pendências-reais-bloqueiam-produção-real)
 - [Roadmap restante](#roadmap-restante)
 - [Como retomar o trabalho](#como-retomar-o-trabalho)
 - [Lições aprendidas / pegadinhas do projeto](#lições-aprendidas--pegadinhas-do-projeto)
@@ -21,167 +20,180 @@
 ## O que é o projeto
 
 Loja de multitracks (faixas separadas/stems de música gospel) com pagamento via PIX (Asaas) e
-entrega automática do arquivo por e-mail via Google Drive. Painel administrativo completo pra
-gerenciar catálogo, vendas, cupons, administradores e auditoria.
+entrega automática do arquivo por Google Drive. Painel administrativo completo pra gerenciar
+catálogo, kits promocionais, vendas, financeiro, funil de conversão, cupons, administradores e
+auditoria. Cliente pode montar carrinho com múltiplos itens (um PIX só), buscar por filtros
+avançados (tom, BPM, gênero, idioma), ver recomendações, e tem uma conta própria ("Minha Conta")
+criada automaticamente na primeira compra confirmada.
 
 Veja o [README.md](README.md) para a documentação técnica completa (stack, arquitetura, rotas,
 schema do banco, Edge Functions). Este arquivo aqui é sobre **histórico e continuidade**, não
-documentação de referência.
+documentação de referência — mantenha os dois atualizados quando fizer mudanças grandes.
 
-## Linha do tempo desta sessão
+## Linha do tempo
 
-1. **Migração de infraestrutura.** O projeto começou hospedado no [Lovable](https://lovable.dev)
-   com um Supabase antigo (`nskbbfpciuoredlkezhw`) ao qual o dono perdeu acesso à conta (não sabia
-   mais o e-mail/senha da conta Supabase, só do login admin do próprio app). Foi feita uma
-   recuperação: login no app antigo via reset de senha, extração dos 5 registros de catálogo e dos
-   arquivos de áudio reais (até 653MB cada) do Storage privado do projeto antigo.
-2. **Novo Supabase.** Criado projeto novo (`nhbuivrsbiivimeoyqqr`, nome "Gospel VS", org "Ueslei
-   Neri", região São Paulo) na conta principal do dono. Schema + RLS + os 5 registros + arquivos
+### Sessão 1 — migração de infraestrutura e fundação
+
+1. **Migração de infraestrutura.** Projeto começou no [Lovable](https://lovable.dev) com um
+   Supabase antigo ao qual o dono perdeu acesso. Recuperado via reset de senha do login admin do
+   próprio app, extraídos os 5 registros de catálogo e os arquivos de áudio reais do Storage antigo.
+2. **Novo Supabase** (`nhbuivrsbiivimeoyqqr`, "Gospel VS", região São Paulo). Schema + RLS + dados
    migrados. **Descoberta importante**: as chaves novas do Supabase (`sb_publishable_`/`sb_secret_`)
-   não vêm com os grants de tabela padrão (`GRANT SELECT/INSERT/...`) que as chaves antigas tinham —
-   foi preciso rodar `GRANT ALL ... TO anon, authenticated, service_role` manualmente (ver migrations
-   `20260718233935` e `20260718234405`).
-3. **Armazenamento migrado para Google Drive.** Os arquivos de multitrack (100GB+ no total, alguns
-   arquivos de 500MB+) não cabiam no plano gratuito do Supabase Storage (1GB). Decisão: manter
-   banco/auth/functions no Supabase (grátis) e mover os arquivos de áudio pro Google Drive pessoal
-   do dono (5TB de espaço), via OAuth2 com refresh token de longa duração. Upload é resumível
-   (o navegador sobe direto pro Drive, sem passar pela Edge Function) e a entrega é por
-   compartilhamento individual (não link público) — o comprador recebe o e-mail nativo do Google
-   "compartilhou um arquivo com você".
-4. **Revisão de segurança pedida pelo usuário**, seguida de correções:
-   - **Crítico**: webhook da Asaas não validava origem (qualquer um podia forjar "pagamento
-     confirmado" e liberar arquivo de graça) → corrigido com token secreto (`ASAAS_WEBHOOK_TOKEN`).
-   - **Crítico**: preço da compra vinha do que o navegador mandava → corrigido, `create-payment`
-     recalcula sempre a partir do banco.
-   - CORS liberado (`*`) em todas as Edge Functions → allowlist via secret `ALLOWED_ORIGINS`.
-   - CPF/telefone/e-mail em texto puro nos logs → mascarados.
-   - Busca vulnerável a injeção de filtro do PostgREST → sanitizada.
-   - 2FA (TOTP) opcional adicionado pra contas de admin.
-5. **Roadmap de funcionalidades** (baseado num arquivo `Novas implementações.md` que o usuário
-   trouxe, com 5 itens do lado cliente e 10 do lado admin). Decidido atacar o lado admin primeiro,
-   um item por vez, com o Claude escolhendo a ordem quando pedido. Implementados nesta sessão:
-   - Logs de Auditoria (ações + histórico de mudança de dados)
-   - Dashboard analítico avançado (ticket médio, taxa de conversão, produtos estagnados, presets
-     de período incluindo "Todo o período")
-   - Cupons de desconto (CRUD admin + validação/aplicação segura no checkout)
-6. **Correção de bugs** apontados pelo usuário após testar o painel:
-   - Logo do admin linkava pra home pública (`/`) em vez de ficar em `/admin`
-   - Botões de ação (publicar/despublicar, verificar pagamento, reenviar download) desabilitavam
-     a linha errada da tabela (todas as linhas travavam, não só a que estava processando)
-   - Contador final da importação em lote sempre errado (closure obsoleta)
-   - **Achado durante a varredura, não reportado pelo usuário**: a FK de `sales.multitrack_id` tinha
-     `ON DELETE CASCADE` — excluir uma música do catálogo apagava silenciosamente todo o histórico
-     de vendas dela. Trocado pra `RESTRICT` (bloqueia a exclusão se já houver venda), com mensagem
-     clara pedindo pra usar "Despublicar" em vez disso.
+   não vêm com os grants de tabela padrão — precisou `GRANT ALL ... TO anon, authenticated,
+   service_role` manual, e depois `ALTER DEFAULT PRIVILEGES` pra cobrir tabelas futuras também
+   (migrations `20260718233935`/`20260718234405`).
+3. **Storage migrado pro Google Drive pessoal** do dono (arquivos de até 500MB+, não cabiam no
+   plano grátis do Supabase Storage). Upload resumível direto do navegador pro Drive; entrega por
+   compartilhamento individual (não link público).
+4. **Revisão de segurança**: webhook da Asaas sem validação de origem → token secreto; preço do
+   checkout confiava no navegador → recalculado sempre no servidor; CORS `*` → allowlist; PII em
+   logs → mascarada; busca vulnerável a injeção de filtro PostgREST → sanitizada; 2FA (TOTP)
+   opcional pra admins.
+5. Implementado: Logs de Auditoria, Dashboard analítico, Cupons de desconto.
+6. Bugs corrigidos: logo do admin linkando errado, botões de ação desabilitando a linha errada da
+   tabela, contador de importação em lote errado, FK de `sales.multitrack_id` que cascade-deletava
+   histórico de vendas (trocada pra `RESTRICT`).
 
-Todas as mudanças foram commitadas e enviadas pro GitHub (`github.com/uesleineri/music-vault-store`,
-branch `main`) ao longo do caminho — o histórico de commits ali é o registro detalhado de cada passo.
+### Sessão 2 — roadmap completo (kits, carrinho, financeiro, contas de cliente, e mais)
+
+Sessão muito mais longa que implementou o roadmap quase inteiro, um item por vez, sempre com
+migração + Edge Functions + deploy + teste no navegador antes de comitar. Nesta ordem:
+
+7. **Módulo financeiro** — receita bruta/taxas da Asaas/lucro líquido em `/admin/financial`.
+   Descoberta: o payload da Asaas (webhook e `GET /v3/payments/:id`) traz `value`/`netValue`, e
+   `netValue` é o valor líquido após a taxa — não precisou de nenhuma chamada extra à API.
+8. **Kits promocionais (bundles)** — tabelas `bundles`/`bundle_items`, `sales.bundle_id` (nullable,
+   junto com `multitrack_id` também virando nullable — uma venda é de exatamente um multitrack OU
+   um bundle). Páginas públicas `/kits`, `/kit/:id`, `/checkout/kit/:id`, admin `/admin/bundles`.
+9. **Carrinho de compras** — o maior refactor: `sales.checkout_group_id` permite que várias linhas
+   (uma por item) compartilhem um único pagamento PIX. `create-payment`/`validate-coupon` passaram
+   a receber `items: [...]` em vez de um produto só; `asaas-webhook`/`verify-payment`/
+   `get-download`/`resend-download` generalizados pra operar no grupo inteiro (rateio de taxa e
+   desconto proporcional, compartilhamento de todos os arquivos, um download_token só por grupo).
+   `CartContext` (localStorage) + `CartDrawer` (painel lateral, não página).
+10. **Central de notificações** (Supabase Realtime na tabela `sales`) — página `/admin/notifications`
+    com badge de não-lidas no menu, eventos da mesma compra (várias linhas, um `checkout_group_id`)
+    agrupados numa janela de 500ms pra não notificar 3x o mesmo pedido de carrinho.
+11. **Revisão profunda de código** (multi-agente, 8 ângulos) sobre todo o trabalho acima. Achados
+    corrigidos: item duplicado no carrinho dobrava a cobrança; divisão por zero num carrinho 100%
+    grátis; export CSV do financeiro não reconhecia venda de kit; botão "remover capa" de kit não
+    persistia; validação de kit não verificava se as músicas dentro dele ainda estavam ativas;
+    compartilhamento no Drive rodando sequencial em vez de paralelo; rateio de taxa dependendo de
+    ordem de linha não-determinística; métricas de "vendas" contando linha em vez de pedido
+    (`countOrders()` — agrupa por `checkout_group_id`); bug real no `CartContext.addItem` (checava
+    duplicata dentro do callback do `setState`, sempre retornava `true`).
+12. **Funil de vendas** — tabela `funnel_events` (`checkout_started`→`pix_generated` no navegador,
+    `payment_confirmed`→`download_completed` no backend), página `/admin/funnel`.
+13. **Busca avançada** — colunas `genre`/`key_signature`/`bpm`/`language` em `multitracks`, painel
+    de filtros no `/catalog`. **Achado de bug de ambiente**: `@radix-ui/react-collapsible` 1.1.11
+    quebra com "Invalid hook call" nesta versão do React 18 do projeto — usado `if/else` de
+    renderização condicional em vez do componente `Collapsible`.
+14. **Recomendações** ("Você também pode gostar") — função SQL `get_frequently_bought_with()`
+    (`SECURITY DEFINER`, já que `sales` é admin-only) + fallback pra mesmo artista → mesmo gênero →
+    mais recentes.
+15. **Contas de cliente automáticas + "Minha Conta"** — sem nenhuma mudança no checkout. Na
+    confirmação do pagamento (`asaas-webhook`/`verify-payment`), `ensureCustomerAccount()` convida
+    automaticamente o comprador via `supabase.auth.admin.inviteUserByEmail()` (mesmo mecanismo já
+    usado pra convidar admins) se o e-mail ainda não tem conta. Cliente define a própria senha pelo
+    link do e-mail — nunca geramos ou vemos uma senha. RLS nova: cliente logado só vê as próprias
+    linhas em `sales` (`buyer_email = auth.jwt() ->> 'email'`). **Decisão de segurança**: o usuário
+    queria e-mail+CPF como senha, recusado (CPF não é segredo, baixa entropia) — e depois recusado
+    também "gerar senha aleatória e mandar por e-mail" (Supabase Auth não manda e-mail com texto
+    livre, só templates fixos) até convergir no fluxo de convite.
+16. **`ASAAS_API_KEY` configurada** (chave de produção real fornecida pelo usuário) — checkout
+    testado de ponta a ponta com sucesso (gerou QR code PIX real). Descoberto durante o teste: a
+    Asaas exige mínimo de R$5,00 por cobrança PIX — adicionada validação amigável (admin e
+    checkout) em vez do erro técnico da Asaas estourar pro comprador.
+17. Ajustes visuais finais no header: botão "Minha Conta" com cor sólida (`variant="default"`),
+    "Catálogo"/"Kits" com contorno (`variant="outline"`).
+
+Todas as mudanças foram commitadas e enviadas pro GitHub (`main`) ao longo do caminho — o histórico
+de commits é o registro detalhado de cada passo (mensagens de commit são descritivas).
 
 ## Estado atual da infraestrutura
 
 | Peça | Onde | Status |
 |---|---|---|
 | Banco de dados / Auth / Edge Functions | Supabase, projeto `nhbuivrsbiivimeoyqqr` ("Gospel VS") | ✅ Ativo |
-| Arquivos de multitrack | Google Drive pessoal (`uesleineri1@gmail.com`), pasta "Gospel VS - Multitracks" | ✅ Ativo, 5 músicas migradas |
+| Arquivos de multitrack | Google Drive pessoal (`uesleineri1@gmail.com`), pasta "Gospel VS - Multitracks" | ✅ Ativo |
 | Capas/previews | Supabase Storage (buckets `covers`/`previews`, públicos) | ✅ Ativo |
-| Pagamento | Asaas (PIX) | ⚠️ **Não configurado ainda** — falta `ASAAS_API_KEY` |
-| Frontend em produção | Incerto — originalmente pensado pra Vercel, mas não confirmado onde está publicado hoje (possivelmente ainda só no Lovable) | ⚠️ A confirmar |
+| Pagamento | Asaas (PIX) | ✅ **`ASAAS_API_KEY` configurada e testada com sucesso** (gerou PIX real) |
+| Realtime | Habilitado na tabela `sales` (notificações admin) | ✅ Ativo |
+| Contas de cliente | Supabase Auth (convite automático na confirmação de pagamento) | ✅ Ativo, mas depende do item de Redirect URLs nas pendências |
+| Frontend em produção | Ainda não confirmado onde está publicado publicamente (possivelmente só Lovable) | ⚠️ A confirmar |
 | Repositório | `github.com/uesleineri/music-vault-store`, branch `main` | ✅ Tudo commitado e enviado |
 
 ## Onde estão as credenciais
 
 Não estão neste arquivo. Localização de cada uma:
 
-- **`.env` local** (na raiz do projeto, já no `.gitignore`... **exceto que ele estava versionado
-  no git desde a criação original pelo Lovable** — vale considerar remover do controle de versão em
-  algum momento): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`
-  (essa última é pública por natureza, feita pra ir no bundle do navegador).
-- **Secrets das Edge Functions** (Supabase Dashboard → Project Settings → Edge Functions → Secrets,
-  ou `npx supabase secrets list --project-ref nhbuivrsbiivimeoyqqr`): `GOOGLE_CLIENT_ID`,
-  `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `ASAAS_WEBHOOK_TOKEN`, `ALLOWED_ORIGINS`, e (a
-  configurar) `ASAAS_API_KEY`.
-- **Senha do Postgres** do projeto novo: só o usuário sabe (definida na criação do projeto). Se
-  perdida, resetar em Project Settings → Database → Reset database password.
+- **`.env` local**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+  (pública por natureza).
+- **Secrets das Edge Functions** (`npx supabase secrets list --project-ref nhbuivrsbiivimeoyqqr`):
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `ASAAS_WEBHOOK_TOKEN`,
+  `ASAAS_API_KEY` (configurada), `ALLOWED_ORIGINS`, `SITE_URL` (novo — usado pra montar o link do
+  e-mail de convite de conta de cliente; hoje só tem `http://localhost:8080`).
+- **Senha do Postgres**: só o usuário sabe. Resetar em Project Settings → Database se perdida.
 - **Login do admin do painel** (`/admin/login`): e-mail `uesleineri1@gmail.com`, senha só o usuário
-  sabe. 2FA está disponível mas desativado no momento (foi testado e desligado de propósito pra não
-  trancar o usuário fora).
-- **Token de acesso pessoal do Supabase CLI** (`sbp_...`, usado pra rodar `supabase functions
-  deploy` / `db push` sem login interativo): gerado em supabase.com/dashboard/account/tokens. Não
-  fica salvo em lugar nenhum do projeto — precisa gerar de novo quando for usar o CLI numa sessão
-  nova (ou usar `supabase login` interativo, se disponível no ambiente).
+  sabe. 2FA disponível, desativado no momento.
+- **Token de acesso pessoal do Supabase CLI** (`sbp_...`): gerar em
+  supabase.com/dashboard/account/tokens quando for usar o CLI numa sessão nova.
 
 ## O que já foi implementado
 
-Funcionalidades completas, testadas ao vivo no navegador, e publicadas:
+**Loja pública**: catálogo com busca (texto + filtros avançados: gênero, idioma, tom, faixa de
+BPM), destaques em carrossel na home, kits promocionais, carrinho (múltiplos itens, um PIX só,
+painel lateral), checkout PIX com cupom (single/kit/carrinho), recomendações "Você também pode
+gostar", download por token, "Minha Conta" (login e-mail+senha, histórico de compras), tema
+claro/escuro.
 
-**Loja pública**: catálogo com busca/paginação/ordenação, detalhes com preview de áudio, checkout
-PIX com cupom de desconto, página de download por token, tema claro/escuro.
+**Painel admin** (`/admin`): dashboard, multitracks (CRUD + importação em lote + metadados de
+busca avançada), kits (CRUD com seletor de músicas), vendas (verificar/cancelar pagamento,
+reenviar download, exportar CSV, vendas iniciadas vs. concluídas), financeiro (receita
+bruta/taxas/lucro líquido), funil de vendas (checkout iniciado → PIX gerado → pago → download),
+cupons, administradores (convite + 2FA), notificações em tempo real (badge no menu), logs de
+auditoria.
 
-**Painel admin** (`/admin`): dashboard (receita, ticket médio, taxa de conversão, mais
-vendidas/recentes/estagnados, uso do Google Drive), CRUD de multitracks (individual + importação em
-lote), gestão de vendas (verificar pagamento na Asaas, reenviar download, exportar CSV, filtros de
-período incluindo "todo o período"), cupons de desconto, administradores (convite/remoção + 2FA
-própria), logs de auditoria (quem fez o quê, quando, o que mudou).
+Consulte o [README.md](README.md) pra detalhes técnicos (schema, Edge Functions).
 
-Consulte o [README.md](README.md) pra detalhes técnicos de cada um (schema, Edge Functions
-envolvidas, etc.) — aqui é só o inventário.
+## Segurança
 
-## Segurança — o que foi corrigido
+Preço sempre validado no servidor (inclusive em carrinho multi-item, com checagem de item
+duplicado), webhook autenticado, RLS completa (incluindo a política nova que deixa cliente ver só
+as próprias vendas via claim do JWT, sem abrir a tabela toda), CORS restrito, PII mascarada em
+logs, 2FA disponível, contas de cliente sem senha gerada/emailada em texto puro (fluxo de convite
+do Supabase — cliente define a própria senha).
 
-Ver seção "Linha do tempo" acima, item 4. Resumo do estado atual: preço sempre validado no
-servidor, webhook autenticado, RLS completo em todas as tabelas (com `audit_logs`, `coupons` e
-`admin_users` sem política de escrita pro cliente — só via Edge Function com `service_role` ou
-trigger `SECURITY DEFINER`), CORS restrito por allowlist, PII mascarada em logs, 2FA disponível.
+## Pendências reais (bloqueiam produção real)
 
-## Bugs corrigidos
-
-Ver seção "Linha do tempo" acima, item 6, e o commit `d2ab06a` no histórico do git pra detalhes
-técnicos de cada correção.
-
-## Pendências reais (bloqueiam produção)
-
-1. **`ASAAS_API_KEY` não configurada** — sem isso, o checkout gera erro `"ASAAS_API_KEY not
-   configured"` ao tentar pagar. É a única coisa que impede vendas reais agora. Quando tiver a
-   chave, configurar com:
-   ```
-   npx supabase secrets set ASAAS_API_KEY="..." --project-ref nhbuivrsbiivimeoyqqr
-   ```
-2. **`ASAAS_WEBHOOK_TOKEN`** já está configurado no Supabase, mas **precisa ser colado também no
-   painel da Asaas** (Configurações → Integrações → Webhooks → campo de token de autenticação) — sem
-   isso dos dois lados, o webhook real também vai ser rejeitado, não só os falsos.
-3. **`ALLOWED_ORIGINS`** só tem `http://localhost:8080` hoje. Assim que houver um domínio de
-   produção definido, atualizar:
-   ```
-   npx supabase secrets set ALLOWED_ORIGINS="http://localhost:8080,https://seudominio.com" --project-ref nhbuivrsbiivimeoyqqr
-   ```
-   Sem isso, o checkout para de funcionar em produção (CORS bloqueando).
-4. **Onde o frontend está hospedado em produção não foi confirmado** nesta sessão — o usuário
-   mencionou que talvez ainda esteja só no Lovable, não na Vercel como se pensava originalmente.
-   Vale confirmar antes de anunciar a loja pro público, e então resolver o item 3 acima.
+1. **`ASAAS_WEBHOOK_TOKEN`** está configurado no Supabase, mas **precisa ser colado também no
+   painel da Asaas** (Configurações → Integrações → Webhooks) — sem isso dos dois lados, a
+   confirmação automática de pagamento não funciona (só a verificação manual pelo admin funcionaria).
+2. **`ALLOWED_ORIGINS`** só tem `http://localhost:8080`. Atualizar quando houver domínio de
+   produção, senão o checkout para de funcionar em produção (CORS).
+3. **`SITE_URL`** (novo secret, usado nos e-mails de convite de conta de cliente) também só tem
+   `http://localhost:8080` — mesma atualização necessária.
+4. **Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**: precisa ter
+   `http://localhost:8080/minha-conta/definir-senha` (e depois a URL de produção) na lista, senão o
+   link do e-mail de convite de conta de cliente pode não redirecionar corretamente. Ação manual no
+   dashboard, não é código.
+5. **Onde o frontend está hospedado em produção não foi confirmado** — resolver antes de anunciar a
+   loja publicamente, e então resolver os itens 2 e 3 acima com o domínio real.
 
 ## Roadmap restante
 
-Do arquivo original `Novas implementações.md` (o usuário pode ter esse arquivo salvo em
-`C:\Users\Ueslei Neri\Documents\Novas implementações.md` fora do repo). Itens ainda não atacados:
+Do arquivo original `Novas implementações.md` — quase tudo foi implementado nesta sessão. Só isto
+ficou de fora:
 
 **Lado admin:**
-- Kits promocionais (bundles) — agrupar várias músicas em produto único com preço fixo
 - Avaliações e prova social — notas/comentários de compradores, exibição pública
-- Recuperação de checkout abandonado — e-mail automático pra PIX gerado e não pago após 2h
-  (precisa de agendamento — Supabase Cron — e de um provedor de e-mail, já que hoje só existe
-  entrega via compartilhamento nativo do Drive, não um serviço de e-mail transacional de verdade)
-- Análise de funil de vendas — rastrear checkout iniciado → PIX gerado → PIX pago → download feito
-  (precisa de uma tabela de eventos nova, hoje isso não é rastreado)
-- Central de notificações internas — alertas em tempo real no painel (precisa de Supabase Realtime)
-- Módulo financeiro — receita bruta, taxas da Asaas, lucro líquido (precisa investigar se a API da
-  Asaas expõe taxas de forma utilizável)
+- Recuperação de checkout abandonado — e-mail automático pra PIX gerado e não pago após 2h (precisa
+  de agendamento — Supabase Cron — **e de um provedor de e-mail transacional de verdade**, já que o
+  único mecanismo de e-mail que funciona hoje é o Supabase Auth, limitado a templates fixos de
+  auth — não dá pra mandar um e-mail de marketing/lembrete arbitrário com ele)
 
-**Lado cliente** (nenhum atacado ainda):
-- Carrinho de compras (múltiplos itens, um PIX só)
-- Sistema de contas de cliente (cadastro/login)
-- Área "Minha Conta" (compras, downloads, licenças, reenvio de acesso)
-- Motor de busca avançado (filtros por tom, BPM, estilo, idioma, etc. — hoje só existe artista/música)
-- Recomendações ("Você também pode gostar")
+**Lado cliente**: nenhum item restante — carrinho, contas de cliente/"Minha Conta", busca
+avançada e recomendações foram todos implementados nesta sessão.
 
 ## Como retomar o trabalho
 
@@ -191,11 +203,11 @@ cd "C:\Users\Ueslei Neri\Documents\Music\music-vault-store"
 npm install
 npm run dev   # sobe em http://localhost:8080
 
-# Aplicar uma migration nova no banco (precisa da senha do Postgres)
-npx supabase db push --db-url "postgresql://postgres:SENHA_URL_ENCODED@db.nhbuivrsbiivimeoyqqr.supabase.co:5432/postgres" --include-all --yes
+# Aplicar uma migration nova no banco (CLI já autenticado nesta máquina;
+# senão precisa de SUPABASE_ACCESS_TOKEN=sbp_... ou supabase login)
+npx supabase db push --linked --yes
 
-# Deploy de Edge Functions (precisa de um Personal Access Token, sbp_...)
-export SUPABASE_ACCESS_TOKEN="sbp_..."
+# Deploy de Edge Functions
 npx supabase functions deploy --project-ref nhbuivrsbiivimeoyqqr
 
 # Commit e push
@@ -205,24 +217,37 @@ git push origin main
 ```
 
 Se for continuar com uma IA assistente numa sessão nova: aponte pra este arquivo (`CONTEXT.md`) e
-pro [README.md](README.md) logo no início — juntos eles cobrem tanto o "porquê"/histórico quanto o
-"como" técnico, sem precisar re-explorar o projeto do zero.
+pro [README.md](README.md) logo no início.
 
 ## Lições aprendidas / pegadinhas do projeto
 
-- **Chaves novas do Supabase (`sb_publishable_`/`sb_secret_`) não têm os grants automáticos** que
-  as antigas (JWT `anon`/`service_role`) tinham. Toda tabela nova precisa checar se `anon`,
-  `authenticated` e `service_role` têm `GRANT` — RLS sozinho não basta, é uma camada em cima do
-  grant, não substitui ele.
-- **Sessões de login podem invalidar** (`session_not_found`) depois de múltiplos logins/resets de
-  senha feitos via API na mesma conta — se o app parecer "deslogado do nada" no navegador, tente
-  relogar antes de assumir que é bug de código.
-- **O ambiente de preview/browser às vezes mostra logs de erro em cache** de uma aba antiga mesmo
-  depois do código corrigido — ao investigar um erro, prefira abrir uma aba nova pra confirmar se
-  ele é real ou só resíduo.
-- **Google Drive não expõe tamanho de pasta** na API — o "uso da pasta Gospel VS" no dashboard é
-  calculado somando o tamanho de cada arquivo recursivamente (função `getAppFolderUsage`), não é
-  nativo do Drive.
-- **`request.headers` do PostgREST** é a forma de capturar IP/user-agent dentro de triggers SQL
-  (`current_setting('request.headers', true)::json ->> 'x-forwarded-for'`) — usado nos triggers de
-  auditoria.
+- **Chaves novas do Supabase (`sb_publishable_`/`sb_secret_`) não têm os grants automáticos.**
+  `ALTER DEFAULT PRIVILEGES` (rodado uma vez) cobre tabelas criadas depois pela mesma role — não
+  precisou repetir o `GRANT ALL` manual pras tabelas novas desta sessão (`bundles`, `funnel_events`,
+  etc.), mas vale confirmar se uma tabela nova aparece com erro de permissão mesmo com RLS ok.
+- **`supabase.functions.invoke()` do lado do navegador esconde a mensagem real de erro** — qualquer
+  resposta não-2xx vira só "Edge Function returned a non-2xx status code" em `error.message`. O
+  texto real (`{error: "..."}`) está em `error.context` (a `Response` bruta, não lida ainda) —
+  criado `src/lib/functionError.ts` (`getFunctionErrorMessage`) pra extrair isso; usado em todo
+  `catch`/`onError` que mostra mensagem de Edge Function pro usuário.
+- **Asaas exige PIX de no mínimo R$5,00** — descoberto testando uma cobrança de R$1. Validação
+  adicionada tanto no formulário de multitrack (admin) quanto no `create-payment` (cobre carrinho e
+  kits também, depois de aplicar cupom).
+- **`@radix-ui/react-collapsible` 1.1.11 quebra com "Invalid hook call"** neste projeto (React
+  18.3.1) — o hook novo `useEffectEvent`/`useControllableStateReducer` parece incompatível. Evitar
+  esse componente; usar renderização condicional simples (`{show && (...)}`) no lugar.
+- **CPF não é uma senha segura** — baixa entropia (dígito verificador), circula em boletos/notas
+  fiscais/outros cadastros. Não usar como credencial de autenticação.
+- **Supabase Auth só manda e-mails com templates fixos** (convite, recuperação de senha, magic
+  link, confirmação) — não existe API pra mandar um e-mail com texto livre sem integrar um provedor
+  transacional (Resend/SendGrid etc.), que este projeto não tem.
+- **O preview/browser desta sessão de trabalho às vezes marca a aba como `document.hidden = true`**,
+  o que impede qualquer animação baseada em `requestAnimationFrame` (inclusive `screenshot` da
+  ferramenta de preview trava) — nesses casos, verificar o estado real via `read_page`/JS direto em
+  vez de depender de screenshot.
+- **Sessões de login podem invalidar** (`session_not_found`) depois de múltiplos logins/resets via
+  API na mesma conta — relogar antes de assumir bug de código.
+- **Google Drive não expõe tamanho de pasta** na API — calculado recursivamente
+  (`getAppFolderUsage`).
+- **`request.headers` do PostgREST** captura IP/user-agent dentro de triggers SQL
+  (`current_setting('request.headers', true)::json ->> 'x-forwarded-for'`) — usado na auditoria.
