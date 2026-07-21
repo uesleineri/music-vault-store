@@ -14,13 +14,13 @@ export function Header() {
         </Link>
         <nav className="flex items-center gap-4">
           <Link to="/catalog">
-            <Button variant="ghost">Catálogo</Button>
+            <Button variant="outline">Catálogo</Button>
           </Link>
           <Link to="/kits">
-            <Button variant="ghost">Kits</Button>
+            <Button variant="outline">Kits</Button>
           </Link>
           <Link to="/minha-conta">
-            <Button variant="outline">Minha Conta</Button>
+            <Button variant="default">Minha Conta</Button>
           </Link>
           <CartDrawer />
           <ThemeToggle />
