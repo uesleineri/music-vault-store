@@ -1,8 +1,16 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { googleDrive } from "../_shared/google-drive.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logAudit } from "../_shared/audit.ts";
 
+// Lets the admin's own browser record something it observed (e.g. a
+// background upload that failed after every retry) into the audit trail.
+// audit_logs itself stays write-only via trigger/service_role by design
+// (see 20260719053004_add_audit_logs.sql - a compromised admin session must
+// never be able to tamper with or erase its own trail via a direct REST
+// call) - this function is the one legitimate, attributed door in: it's
+// admin-gated the same as every other admin Edge Function, and always
+// stamps the real caller as the actor, never a client-supplied value.
 const handler = async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
@@ -15,7 +23,6 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify the caller is a logged-in admin before handing out Drive access.
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -27,8 +34,8 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-    const { data: adminRow } = await adminClient
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: adminRow } = await supabase
       .from("admin_users")
       .select("id")
       .eq("user_id", user.id)
@@ -41,29 +48,29 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { file_name, mime_type, artist_name, song_name } = await req.json();
-    if (!file_name || !artist_name || !song_name) {
-      return new Response(JSON.stringify({ error: "Parâmetros obrigatórios ausentes" }), {
+    const { action, target_type, target_label, changes } = await req.json();
+    if (!action || !target_type) {
+      return new Response(JSON.stringify({ error: "action e target_type são obrigatórios" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const accessToken = await googleDrive.getAccessToken();
-    const folderId = await googleDrive.ensureSongFolder(artist_name, song_name, accessToken);
-    const resumableUrl = await googleDrive.createResumableUploadSession(
-      file_name,
-      mime_type || "application/octet-stream",
-      folderId,
-      accessToken
-    );
+    await logAudit(supabase, req, {
+      actorId: user.id,
+      actorEmail: user.email ?? null,
+      action,
+      targetType: target_type,
+      targetLabel: target_label ?? null,
+      changes: changes ?? null,
+    });
 
-    return new Response(
-      JSON.stringify({ resumable_url: resumableUrl, access_token: accessToken, folder_id: folderId }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   } catch (error: any) {
-    console.error("Error in drive-init-upload:", error);
+    console.error("Error in log-client-event:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },

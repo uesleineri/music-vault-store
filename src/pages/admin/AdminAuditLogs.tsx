@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, History, Loader2 } from 'lucide-react';
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAuditLogs, AuditLog } from '@/hooks/useAuditLogs';
+import { useAuditLogs, useMarkAuditLogsViewed, AuditLog } from '@/hooks/useAuditLogs';
 
 const PAGE_SIZE = 20;
 
@@ -144,6 +144,14 @@ export default function AdminAuditLogs() {
     page,
     pageSize: PAGE_SIZE,
   });
+
+  const markViewed = useMarkAuditLogsViewed();
+  // Opening this page is the "read" action - same idea as the notifications
+  // page marking itself as read on mount.
+  useEffect(() => {
+    markViewed.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFilterChange = (value: string) => {
     setTargetType(value);

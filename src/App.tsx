@@ -23,6 +23,8 @@ import CartCheckout from "@/pages/CartCheckout";
 import DownloadPage from "@/pages/DownloadPage";
 import MyAccount from "@/pages/MyAccount";
 import SetPassword from "@/pages/SetPassword";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import TermsOfService from "@/pages/TermsOfService";
 import NotFound from "@/pages/NotFound";
 
 // Admin pages
@@ -63,6 +65,8 @@ const App = () => (
             <Route path="/checkout" element={<CartCheckout />} />
             <Route path="/minha-conta" element={<MyAccount />} />
             <Route path="/minha-conta/definir-senha" element={<SetPassword />} />
+            <Route path="/privacidade" element={<PrivacyPolicy />} />
+            <Route path="/termos" element={<TermsOfService />} />
           </Route>
 
           {/* Download page (no layout) */}

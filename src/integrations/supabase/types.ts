@@ -32,6 +32,29 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_log_reads: {
+        Row: {
+          admin_user_id: string
+          last_viewed_at: string
+        }
+        Insert: {
+          admin_user_id: string
+          last_viewed_at?: string
+        }
+        Update: {
+          admin_user_id?: string
+          last_viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_log_reads_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: true
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_notifications: {
         Row: {
           checkout_group_id: string | null

@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminNotificationsProvider, useAdminNotificationsContext } from '@/contexts/AdminNotificationsContext';
+import { UploadQueueProvider } from '@/contexts/UploadQueueContext';
+import { UploadQueueWidget } from '@/components/admin/UploadQueueWidget';
 import { usePendingReviewsCount } from '@/hooks/useReviews';
+import { useAuditLogUnreadCount } from '@/hooks/useAuditLogs';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -26,6 +29,7 @@ function AdminLayoutContent() {
   const { signOut } = useAuth();
   const { unreadCount } = useAdminNotificationsContext();
   const { data: pendingReviewsCount } = usePendingReviewsCount();
+  const { data: unreadLogsCount } = useAuditLogUnreadCount();
 
   return (
     <div className="min-h-screen flex">
@@ -43,7 +47,14 @@ function AdminLayoutContent() {
             const isActive = location.pathname === item.href;
             const isNotifications = item.href === '/admin/notifications';
             const isReviews = item.href === '/admin/reviews';
-            const badgeCount = isNotifications ? unreadCount : isReviews ? pendingReviewsCount ?? 0 : 0;
+            const isAuditLogs = item.href === '/admin/audit-logs';
+            const badgeCount = isNotifications
+              ? unreadCount
+              : isReviews
+              ? pendingReviewsCount ?? 0
+              : isAuditLogs
+              ? unreadLogsCount ?? 0
+              : 0;
             return (
               <Link
                 key={item.href}
@@ -86,6 +97,7 @@ function AdminLayoutContent() {
           <Outlet />
         </main>
       </div>
+      <UploadQueueWidget />
     </div>
   );
 }
@@ -119,7 +131,9 @@ export function AdminLayout() {
 
   return (
     <AdminNotificationsProvider>
-      <AdminLayoutContent />
+      <UploadQueueProvider>
+        <AdminLayoutContent />
+      </UploadQueueProvider>
     </AdminNotificationsProvider>
   );
 }

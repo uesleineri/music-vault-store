@@ -44,6 +44,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { sanitizeFileName, uploadToSupabaseStorage } from '@/lib/driveUpload';
+import { formatPriceInput, parsePriceInput } from '@/lib/priceInput';
 import { Bundle } from '@/types/multitrack';
 
 const MIN_PRICE = 5;
@@ -85,7 +86,7 @@ export default function AdminBundles() {
     setFormData({
       name: bundle.name,
       description: bundle.description ?? '',
-      price: bundle.price.toString(),
+      price: bundle.price.toFixed(2).replace('.', ','),
     });
     setCoverPreviewUrl(bundle.cover_url);
     setSelectedMultitrackIds([]);
@@ -124,7 +125,7 @@ export default function AdminBundles() {
       return;
     }
 
-    if (parseFloat(formData.price) < MIN_PRICE) {
+    if (parsePriceInput(formData.price) < MIN_PRICE) {
       toast({
         title: 'Preço muito baixo',
         description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
@@ -153,7 +154,7 @@ export default function AdminBundles() {
           id: editingBundle.id,
           name: formData.name,
           description: formData.description || null,
-          price: parseFloat(formData.price),
+          price: parsePriceInput(formData.price),
           cover_url: coverUrl,
           multitrackIds: selectedMultitrackIds,
         });
@@ -162,7 +163,7 @@ export default function AdminBundles() {
         await createBundle.mutateAsync({
           name: formData.name,
           description: formData.description || null,
-          price: parseFloat(formData.price),
+          price: parsePriceInput(formData.price),
           cover_url: coverUrl,
           is_active: true,
           multitrackIds: selectedMultitrackIds,
@@ -243,11 +244,11 @@ export default function AdminBundles() {
                 <Label htmlFor="price">Preço fixo (R$)</Label>
                 <Input
                   id="price"
-                  type="number"
-                  step="0.01"
-                  min={MIN_PRICE}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, price: formatPriceInput(e.target.value) })}
                   required
                 />
                 <p className="text-xs text-muted-foreground">

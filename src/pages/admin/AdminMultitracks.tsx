@@ -32,12 +32,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { SearchBar } from '@/components/SearchBar';
-import { useMultitracks, useCreateMultitrack, useUpdateMultitrack, useDeleteMultitrack } from '@/hooks/useMultitracks';
+import { useMultitracks, useUpdateMultitrack, useDeleteMultitrack } from '@/hooks/useMultitracks';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Multitrack } from '@/types/multitrack';
-import { sanitizeFileName, uploadAudioToDrive, uploadToSupabaseStorage } from '@/lib/driveUpload';
+import { formatPriceInput, parsePriceInput } from '@/lib/priceInput';
 import { BulkImportDialog } from '@/components/admin/BulkImportDialog';
+import { useUploadQueue } from '@/contexts/UploadQueueContext';
 
 const PAGE_SIZE = 10;
 // Asaas rejects any PIX charge under R$5 outright - create-payment enforces
@@ -50,10 +51,10 @@ export default function AdminMultitracks() {
 
   const { data, isLoading } = useMultitracks({ searchQuery, page, pageSize: PAGE_SIZE, includeInactive: true });
   const multitracks = data?.data;
-  const createMultitrack = useCreateMultitrack();
   const updateMultitrack = useUpdateMultitrack();
   const deleteMultitrack = useDeleteMultitrack();
   const { toast } = useToast();
+  const { enqueueMultitrackUpload } = useUploadQueue();
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -76,9 +77,6 @@ export default function AdminMultitracks() {
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [currentUploadStep, setCurrentUploadStep] = useState('');
   const [isSearchingCover, setIsSearchingCover] = useState(false);
   const [editingMultitrack, setEditingMultitrack] = useState<Multitrack | null>(null);
   const [formData, setFormData] = useState({
@@ -117,7 +115,7 @@ export default function AdminMultitracks() {
     setFormData({
       artist_name: multitrack.artist_name,
       song_name: multitrack.song_name,
-      price: multitrack.price.toString(),
+      price: multitrack.price.toFixed(2).replace('.', ','),
       genre: multitrack.genre ?? '',
       key_signature: multitrack.key_signature ?? '',
       bpm: multitrack.bpm != null ? String(multitrack.bpm) : '',
@@ -178,9 +176,9 @@ export default function AdminMultitracks() {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // For new multitracks, require audio file
     if (!editingMultitrack && !audioFile) {
       toast({
@@ -191,7 +189,8 @@ export default function AdminMultitracks() {
       return;
     }
 
-    if (parseFloat(formData.price) < MIN_PRICE) {
+    const price = parsePriceInput(formData.price);
+    if (price < MIN_PRICE) {
       toast({
         title: 'Preço muito baixo',
         description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
@@ -200,163 +199,33 @@ export default function AdminMultitracks() {
       return;
     }
 
-    setIsUploading(true);
+    // Upload (Drive/Storage) and the create/update mutation itself now run in
+    // the background (see UploadQueueContext) - the dialog can close right
+    // away instead of blocking the admin on a multi-minute file transfer.
+    enqueueMultitrackUpload({
+      editingMultitrack,
+      formData: {
+        artist_name: formData.artist_name,
+        song_name: formData.song_name,
+        price,
+        genre: formData.genre.trim() || null,
+        key_signature: formData.key_signature.trim() || null,
+        bpm: formData.bpm.trim() ? parseInt(formData.bpm, 10) : null,
+        language: formData.language.trim() || null,
+      },
+      audioFile,
+      coverFile,
+      previewFile,
+      coverPreviewUrl,
+    });
 
-    try {
-      let fileUrl = editingMultitrack?.file_url || '';
-      let coverUrl = editingMultitrack?.cover_url || null;
-      let previewUrl = editingMultitrack?.preview_url || null;
+    toast({
+      title: 'Upload iniciado em segundo plano',
+      description: 'Acompanhe o progresso no canto inferior direito da tela.',
+    });
 
-      // Calculate total files to upload for progress tracking
-      const filesToUpload = [audioFile, coverFile, previewFile].filter(Boolean);
-      const totalFiles = filesToUpload.length;
-      let completedFiles = 0;
-
-      const updateOverallProgress = (fileProgress: number) => {
-        const baseProgress = (completedFiles / Math.max(totalFiles, 1)) * 100;
-        const currentFileContribution = (fileProgress / Math.max(totalFiles, 1));
-        setUploadProgress(Math.round(baseProgress + currentFileContribution));
-      };
-
-      // Upload audio file if provided (goes to Google Drive, not Supabase Storage)
-      if (audioFile) {
-        setCurrentUploadStep('Enviando arquivo multitrack para o Google Drive...');
-        console.log('Starting Drive upload for:', audioFile.name);
-
-        const { driveFileId, error: audioError } = await uploadAudioToDrive(
-          audioFile,
-          formData.artist_name,
-          formData.song_name,
-          updateOverallProgress
-        );
-
-        if (audioError || !driveFileId) {
-          console.error('Audio upload error:', audioError);
-          throw new Error(`Erro no upload: ${audioError?.message || 'ID do arquivo não retornado'}`);
-        }
-        fileUrl = driveFileId;
-        completedFiles++;
-        updateOverallProgress(0);
-      }
-
-      // Upload cover file if provided
-      if (coverFile) {
-        setCurrentUploadStep('Enviando capa...');
-        console.log('Uploading cover:', coverFile.name);
-        const coverFileName = `${Date.now()}-${sanitizeFileName(coverFile.name)}`;
-        
-        const { error: coverError } = await uploadToSupabaseStorage(
-          'covers',
-          coverFileName,
-          coverFile,
-          updateOverallProgress
-        );
-        
-        if (coverError) {
-          console.error('Cover upload error:', coverError);
-          throw new Error(`Erro no upload da capa: ${coverError.message}`);
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('covers')
-          .getPublicUrl(coverFileName);
-        coverUrl = publicUrl;
-        completedFiles++;
-        updateOverallProgress(0);
-      } else if (coverPreviewUrl && coverPreviewUrl !== editingMultitrack?.cover_url) {
-        // Use the URL from Deezer search
-        coverUrl = coverPreviewUrl;
-      }
-
-      // Upload preview file if provided
-      if (previewFile) {
-        setCurrentUploadStep('Enviando preview de áudio...');
-        console.log('Uploading preview:', previewFile.name);
-        const previewFileName = `${Date.now()}-${sanitizeFileName(previewFile.name)}`;
-        
-        const { error: previewError } = await uploadToSupabaseStorage(
-          'previews',
-          previewFileName,
-          previewFile,
-          updateOverallProgress
-        );
-        
-        if (previewError) {
-          console.error('Preview upload error:', previewError);
-          throw new Error(`Erro no upload do preview: ${previewError.message}`);
-        }
-
-        const { data: { publicUrl: previewPublicUrl } } = supabase.storage
-          .from('previews')
-          .getPublicUrl(previewFileName);
-        previewUrl = previewPublicUrl;
-        completedFiles++;
-      }
-
-      setCurrentUploadStep('Salvando dados...');
-      setUploadProgress(100);
-
-      const genre = formData.genre.trim() || null;
-      const keySignature = formData.key_signature.trim() || null;
-      const bpm = formData.bpm.trim() ? parseInt(formData.bpm, 10) : null;
-      const language = formData.language.trim() || null;
-
-      if (editingMultitrack) {
-        // Update existing multitrack
-        await updateMultitrack.mutateAsync({
-          id: editingMultitrack.id,
-          artist_name: formData.artist_name,
-          song_name: formData.song_name,
-          price: parseFloat(formData.price),
-          file_url: fileUrl,
-          cover_url: coverUrl,
-          preview_url: previewUrl,
-          genre,
-          key_signature: keySignature,
-          bpm,
-          language,
-        });
-
-        toast({
-          title: 'Multitrack atualizada!',
-          description: 'As alterações foram salvas com sucesso.',
-        });
-      } else {
-        // Create new multitrack
-        await createMultitrack.mutateAsync({
-          artist_name: formData.artist_name,
-          song_name: formData.song_name,
-          price: parseFloat(formData.price),
-          file_url: fileUrl,
-          cover_url: coverUrl,
-          preview_url: previewUrl,
-          is_active: true,
-          genre,
-          key_signature: keySignature,
-          bpm,
-          language,
-        });
-
-        toast({
-          title: 'Multitrack adicionada!',
-          description: 'A multitrack foi cadastrada com sucesso.',
-        });
-      }
-
-      setIsDialogOpen(false);
-      resetForm();
-    } catch (error: any) {
-      console.error('Full error:', error);
-      toast({
-        title: 'Erro ao salvar',
-        description: error.message || 'Tente novamente.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-      setCurrentUploadStep('');
-    }
+    setIsDialogOpen(false);
+    resetForm();
   };
 
   const handleDelete = async (id: string) => {
@@ -435,11 +304,11 @@ export default function AdminMultitracks() {
                 <Label htmlFor="price">Preço (R$)</Label>
                 <Input
                   id="price"
-                  type="number"
-                  step="0.01"
-                  min={MIN_PRICE}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, price: formatPriceInput(e.target.value) })}
                   required
                 />
                 <p className="text-xs text-muted-foreground">
@@ -604,37 +473,12 @@ export default function AdminMultitracks() {
                     : 'Arquivo MP3 curto (30-60 seg) para os clientes ouvirem'}
                 </p>
               </div>
-              {/* Upload Progress */}
-              {isUploading && (
-                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{currentUploadStep}</span>
-                    <span className="font-medium">{uploadProgress}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-300 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
               <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isUploading}>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isUploading}>
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : editingMultitrack ? (
-                    'Salvar'
-                  ) : (
-                    'Adicionar'
-                  )}
+                <Button type="submit">
+                  {editingMultitrack ? 'Salvar' : 'Adicionar'}
                 </Button>
               </div>
             </form>

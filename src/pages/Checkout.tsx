@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useMultitrack } from '@/hooks/useMultitracks';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +33,7 @@ export default function Checkout() {
   } | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [couponCode, setCouponCode] = useState('');
   const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
@@ -472,7 +474,20 @@ export default function Checkout() {
                     R$ {(appliedCoupon ? appliedCoupon.finalPrice : multitrack.price).toFixed(2).replace('.', ',')}
                   </span>
                 </div>
-                <Button type="submit" size="lg" className="w-full" disabled={isProcessing}>
+                <div className="flex items-start gap-2 mb-4">
+                  <Checkbox
+                    id="accept-terms"
+                    checked={acceptedTerms}
+                    onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                  />
+                  <Label htmlFor="accept-terms" className="text-sm font-normal text-muted-foreground leading-snug">
+                    Li e aceito os{' '}
+                    <Link to="/termos" target="_blank" className="underline hover:no-underline">Termos de Uso</Link>
+                    {' '}e a{' '}
+                    <Link to="/privacidade" target="_blank" className="underline hover:no-underline">Política de Privacidade</Link>.
+                  </Label>
+                </div>
+                <Button type="submit" size="lg" className="w-full" disabled={isProcessing || !acceptedTerms}>
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
