@@ -135,15 +135,15 @@ export default function MultitrackDetails() {
           )}
 
           {techSpecs.length > 0 && (
-            <Card className="mb-6">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 font-semibold mb-3">
+            <Card className="mb-6 w-fit min-w-[220px] max-w-[260px]">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 font-semibold mb-1.5 text-sm">
                   <FileText className="h-4 w-4" />
                   Ficha técnica
                 </div>
-                <dl className="space-y-2 text-sm">
+                <dl className="text-sm divide-y divide-border/60">
                   {techSpecs.map((spec) => (
-                    <div key={spec.label} className="flex items-center justify-between">
+                    <div key={spec.label} className="flex items-center justify-between gap-9 py-1">
                       <dt className="text-muted-foreground">{spec.label}</dt>
                       <dd className="font-medium">{spec.value}</dd>
                     </div>
