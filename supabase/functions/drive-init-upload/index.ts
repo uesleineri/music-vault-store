@@ -51,6 +51,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     const accessToken = await googleDrive.getAccessToken();
     const folderId = await googleDrive.ensureSongFolder(artist_name, song_name, accessToken);
+
+    // A resumable session reserves a new Drive file the instant it starts -
+    // if a file with this exact name is already sitting in the folder
+    // (a stale duplicate from a previous attempt the admin retried, or the
+    // old version being replaced), clear it out first so this upload never
+    // ends up as a second copy alongside it.
+    const existingFileIds = await googleDrive.findFilesByName(file_name, folderId, accessToken);
+    await Promise.all(existingFileIds.map((id: string) => googleDrive.deleteFile(id, accessToken)));
+
     const resumableUrl = await googleDrive.createResumableUploadSession(
       file_name,
       mime_type || "application/octet-stream",

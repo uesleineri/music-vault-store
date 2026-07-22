@@ -63,6 +63,35 @@ async function findOrCreateFolder(name: string, parentId: string | null, accessT
   return createFolder(name, parentId, accessToken);
 }
 
+// A resumable session reserves a new Drive file the moment it's initiated -
+// re-initiating one (e.g. the admin retrying after what looked like a
+// failure, or re-submitting the same upload) creates a second file with the
+// same name instead of reusing/replacing the first. Used right before
+// starting a new session to clear out whatever's already there under that
+// exact name, so uploading "the same" file twice never leaves duplicates.
+async function findFilesByName(name: string, folderId: string, accessToken: string): Promise<string[]> {
+  const q = encodeURIComponent(
+    `name = '${name.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`
+  );
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!response.ok) throw new Error(`Drive file search failed: ${await response.text()}`);
+  const data = await response.json();
+  return (data.files ?? []).map((f: any) => f.id);
+}
+
+async function deleteFile(fileId: string, accessToken: string) {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Failed to delete Drive file: ${await response.text()}`);
+  }
+}
+
 // Finds/creates the root app folder, then the per-song subfolder inside it.
 async function ensureSongFolder(artistName: string, songName: string, accessToken: string): Promise<string> {
   const rootId = await findOrCreateFolder(ROOT_FOLDER_NAME, null, accessToken);
@@ -242,4 +271,6 @@ export const googleDrive = {
   resendShareNotification,
   revokeAccessForUser,
   getAppFolderUsage,
+  findFilesByName,
+  deleteFile,
 };
