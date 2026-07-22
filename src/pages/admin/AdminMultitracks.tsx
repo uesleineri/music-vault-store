@@ -92,6 +92,10 @@ export default function AdminMultitracks() {
     key_signature: '',
     bpm: '',
     language: '',
+    time_signature: '',
+    file_format: '',
+    compatible_with: '',
+    stem_count: '',
   });
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
@@ -106,7 +110,19 @@ export default function AdminMultitracks() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   const resetForm = () => {
-    setFormData({ artist_name: '', song_name: '', price: '', genre: '', key_signature: '', bpm: '', language: '' });
+    setFormData({
+      artist_name: '',
+      song_name: '',
+      price: '',
+      genre: '',
+      key_signature: '',
+      bpm: '',
+      language: '',
+      time_signature: '',
+      file_format: '',
+      compatible_with: '',
+      stem_count: '',
+    });
     setCoverFile(null);
     setCoverPreviewUrl(null);
     setCoverOptions([]);
@@ -125,6 +141,10 @@ export default function AdminMultitracks() {
       key_signature: multitrack.key_signature ?? '',
       bpm: multitrack.bpm != null ? String(multitrack.bpm) : '',
       language: multitrack.language ?? '',
+      time_signature: multitrack.time_signature ?? '',
+      file_format: multitrack.file_format ?? '',
+      compatible_with: multitrack.compatible_with ?? '',
+      stem_count: multitrack.stem_count != null ? String(multitrack.stem_count) : '',
     });
     setCoverPreviewUrl(multitrack.cover_url);
     setIsDialogOpen(true);
@@ -235,6 +255,10 @@ export default function AdminMultitracks() {
         key_signature: formData.key_signature.trim() || null,
         bpm: formData.bpm.trim() ? parseInt(formData.bpm, 10) : null,
         language: formData.language.trim() || null,
+        time_signature: formData.time_signature.trim() || null,
+        file_format: formData.file_format.trim() || null,
+        compatible_with: formData.compatible_with.trim() || null,
+        stem_count: formData.stem_count.trim() ? parseInt(formData.stem_count, 10) : null,
       },
       audioFile,
       coverFile,
@@ -380,7 +404,55 @@ export default function AdminMultitracks() {
                   />
                 </div>
               </div>
-              
+
+              {/* Ficha técnica - shown to the customer on the product page */}
+              <div className="space-y-2">
+                <Label>Ficha técnica (opcional, aparece na página do produto)</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="time_signature" className="text-xs text-muted-foreground">Compasso</Label>
+                    <Input
+                      id="time_signature"
+                      placeholder="Ex: 4/4"
+                      value={formData.time_signature}
+                      onChange={(e) => setFormData({ ...formData, time_signature: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stem_count" className="text-xs text-muted-foreground">Nº de faixas/stems</Label>
+                    <Input
+                      id="stem_count"
+                      type="number"
+                      min="1"
+                      placeholder="Ex: 24"
+                      value={formData.stem_count}
+                      onChange={(e) => setFormData({ ...formData, stem_count: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="file_format" className="text-xs text-muted-foreground">Formato</Label>
+                    <Input
+                      id="file_format"
+                      placeholder="Ex: WAV 24 bit / 48 kHz"
+                      value={formData.file_format}
+                      onChange={(e) => setFormData({ ...formData, file_format: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="compatible_with" className="text-xs text-muted-foreground">Compatível com</Label>
+                    <Input
+                      id="compatible_with"
+                      placeholder="Ex: ProPresenter, MultiTracks"
+                      value={formData.compatible_with}
+                      onChange={(e) => setFormData({ ...formData, compatible_with: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tom, BPM e o tamanho do arquivo já aparecem automaticamente - preencha só o que se aplicar aqui.
+                </p>
+              </div>
+
               {/* Cover Section */}
               <div className="space-y-2">
                 <Label>Capa</Label>

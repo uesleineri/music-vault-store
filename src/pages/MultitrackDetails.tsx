@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Music, ShoppingCart, Plus } from 'lucide-react';
+import { ArrowLeft, Music, ShoppingCart, Plus, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AudioPlayer } from '@/components/AudioPlayer';
@@ -75,6 +75,19 @@ export default function MultitrackDetails() {
     );
   }
 
+  const techSpecs: { label: string; value: string | number }[] = [
+    { label: 'Tom', value: multitrack.key_signature ?? '' },
+    { label: 'BPM', value: multitrack.bpm ?? '' },
+    { label: 'Compasso', value: multitrack.time_signature ?? '' },
+    { label: 'Nº de faixas/stems', value: multitrack.stem_count ?? '' },
+    { label: 'Formato', value: multitrack.file_format ?? '' },
+    {
+      label: 'Tamanho do arquivo',
+      value: multitrack.file_size_bytes ? `~${Math.round(multitrack.file_size_bytes / (1024 * 1024))} MB` : '',
+    },
+    { label: 'Compatível com', value: multitrack.compatible_with ?? '' },
+  ].filter((spec) => spec.value !== '');
+
   return (
     <div className="container py-8 animate-fade-in">
       <Link to="/catalog" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8">
@@ -117,6 +130,25 @@ export default function MultitrackDetails() {
             <Card className="mb-6">
               <CardContent className="p-0">
                 <AudioPlayer src={multitrack.preview_url} />
+              </CardContent>
+            </Card>
+          )}
+
+          {techSpecs.length > 0 && (
+            <Card className="mb-6">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 font-semibold mb-3">
+                  <FileText className="h-4 w-4" />
+                  Ficha técnica
+                </div>
+                <dl className="space-y-2 text-sm">
+                  {techSpecs.map((spec) => (
+                    <div key={spec.label} className="flex items-center justify-between">
+                      <dt className="text-muted-foreground">{spec.label}</dt>
+                      <dd className="font-medium">{spec.value}</dd>
+                    </div>
+                  ))}
+                </dl>
               </CardContent>
             </Card>
           )}

@@ -5,7 +5,6 @@ import { MultitrackCard } from '@/components/MultitrackCard';
 import { useMultitracks, useMultitrackFilterOptions } from '@/hooks/useMultitracks';
 import { useReviewSummaries } from '@/hooks/useReviews';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -38,8 +37,6 @@ export default function Catalog() {
   const [genre, setGenre] = useState('');
   const [language, setLanguage] = useState('');
   const [keySignature, setKeySignature] = useState('');
-  const [bpmMin, setBpmMin] = useState('');
-  const [bpmMax, setBpmMax] = useState('');
 
   const { data: filterOptions } = useMultitrackFilterOptions();
   const { data: reviewSummaries } = useReviewSummaries();
@@ -53,11 +50,9 @@ export default function Catalog() {
     genre: genre || undefined,
     language: language || undefined,
     keySignature: keySignature || undefined,
-    bpmMin: bpmMin ? Number(bpmMin) : undefined,
-    bpmMax: bpmMax ? Number(bpmMax) : undefined,
   });
 
-  const hasActiveFilters = !!(genre || language || keySignature || bpmMin || bpmMax);
+  const hasActiveFilters = !!(genre || language || keySignature);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -75,8 +70,6 @@ export default function Catalog() {
     setGenre('');
     setLanguage('');
     setKeySignature('');
-    setBpmMin('');
-    setBpmMax('');
     setPage(1);
   };
 
@@ -179,7 +172,7 @@ export default function Catalog() {
 
         {showFilters && (
             <Card>
-              <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label>Gênero/Estilo</Label>
                   <Select value={genre || ANY} onValueChange={(v) => { setGenre(v === ANY ? '' : v); setPage(1); }}>
@@ -225,27 +218,6 @@ export default function Catalog() {
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label>BPM mínimo</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="Ex: 70"
-                    value={bpmMin}
-                    onChange={(e) => { setBpmMin(e.target.value); setPage(1); }}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>BPM máximo</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="Ex: 140"
-                    value={bpmMax}
-                    onChange={(e) => { setBpmMax(e.target.value); setPage(1); }}
-                  />
-                </div>
               </CardContent>
             </Card>
         )}

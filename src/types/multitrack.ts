@@ -12,6 +12,14 @@ export interface Multitrack {
   key_signature: string | null;
   bpm: number | null;
   language: string | null;
+  // "Ficha técnica" shown on the product page - all optional, filled in per
+  // multitrack at cataloguing time. file_size_bytes is the one exception:
+  // it's captured automatically from the real uploaded file, never typed.
+  time_signature: string | null;
+  file_format: string | null;
+  compatible_with: string | null;
+  stem_count: number | null;
+  file_size_bytes: number | null;
   created_at: string;
   updated_at: string;
 }

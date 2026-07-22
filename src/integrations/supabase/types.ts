@@ -182,8 +182,11 @@ export type Database = {
         Row: {
           artist_name: string
           bpm: number | null
+          compatible_with: string | null
           cover_url: string | null
           created_at: string
+          file_format: string | null
+          file_size_bytes: number | null
           file_url: string
           genre: string | null
           id: string
@@ -192,13 +195,18 @@ export type Database = {
           preview_url: string | null
           price: number
           song_name: string
+          stem_count: number | null
+          time_signature: string | null
           updated_at: string
         }
         Insert: {
           artist_name: string
           bpm?: number | null
+          compatible_with?: string | null
           cover_url?: string | null
           created_at?: string
+          file_format?: string | null
+          file_size_bytes?: number | null
           file_url: string
           genre?: string | null
           id?: string
@@ -207,13 +215,18 @@ export type Database = {
           preview_url?: string | null
           price: number
           song_name: string
+          stem_count?: number | null
+          time_signature?: string | null
           updated_at?: string
         }
         Update: {
           artist_name?: string
           bpm?: number | null
+          compatible_with?: string | null
           cover_url?: string | null
           created_at?: string
+          file_format?: string | null
+          file_size_bytes?: number | null
           file_url?: string
           genre?: string | null
           id?: string
@@ -222,6 +235,8 @@ export type Database = {
           preview_url?: string | null
           price?: number
           song_name?: string
+          stem_count?: number | null
+          time_signature?: string | null
           updated_at?: string
         }
         Relationships: []

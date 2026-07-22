@@ -17,6 +17,10 @@ export interface MultitrackUploadInput {
     key_signature: string | null;
     bpm: number | null;
     language: string | null;
+    time_signature: string | null;
+    file_format: string | null;
+    compatible_with: string | null;
+    stem_count: number | null;
   };
   audioFile: File | null;
   coverFile: File | null;
@@ -71,6 +75,10 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         let fileUrl = editingMultitrack?.file_url || '';
         let coverUrl = editingMultitrack?.cover_url || null;
         let previewUrl = editingMultitrack?.preview_url || null;
+        // Captured from the real file being uploaded, never typed by hand -
+        // stays accurate even if the file changes on a later edit, and
+        // simply carries over unchanged when the audio file isn't replaced.
+        let fileSizeBytes = editingMultitrack?.file_size_bytes ?? null;
 
         const filesToUpload = [audioFile, coverFile, previewFile].filter(Boolean);
         const totalFiles = filesToUpload.length;
@@ -94,6 +102,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
             throw new Error(`Erro no upload: ${audioError?.message || 'ID do arquivo não retornado'}`);
           }
           fileUrl = driveFileId;
+          fileSizeBytes = audioFile.size;
           completedFiles++;
           updateOverallProgress(0);
         }
@@ -130,6 +139,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
             file_url: fileUrl,
             cover_url: coverUrl,
             preview_url: previewUrl,
+            file_size_bytes: fileSizeBytes,
           });
         } else {
           await createMultitrack.mutateAsync({
@@ -137,6 +147,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
             file_url: fileUrl,
             cover_url: coverUrl,
             preview_url: previewUrl,
+            file_size_bytes: fileSizeBytes,
             is_active: true,
           });
         }
