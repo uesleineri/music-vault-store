@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { sanitizeFileName, uploadAudioToDrive, uploadToSupabaseStorage } from '@/lib/driveUpload';
 import { logClientEvent } from '@/lib/clientAuditLog';
+import { isDuplicateMultitrackError, DUPLICATE_MULTITRACK_MESSAGE } from '@/lib/duplicateCheck';
 import { Multitrack } from '@/types/multitrack';
 
 export interface MultitrackUploadInput {
@@ -150,13 +151,14 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         }, 4000);
       } catch (error: any) {
         const title = `${formData.artist_name} - ${formData.song_name}`;
-        patchJob(id, { status: 'error', errorMessage: error.message || 'Tente novamente.' });
+        const message = isDuplicateMultitrackError(error) ? DUPLICATE_MULTITRACK_MESSAGE : error.message;
+        patchJob(id, { status: 'error', errorMessage: message || 'Tente novamente.' });
         toast({
           title: 'Erro ao salvar multitrack',
-          description: `${title}: ${error.message}`,
+          description: `${title}: ${message}`,
           variant: 'destructive',
         });
-        logClientEvent('multitrack.upload_failed', 'multitrack', title, { error: error.message });
+        logClientEvent('multitrack.upload_failed', 'multitrack', title, { error: message });
       }
     },
     [createMultitrack, updateMultitrack, patchJob, toast]

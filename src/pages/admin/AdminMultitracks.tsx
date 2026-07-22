@@ -37,6 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Multitrack } from '@/types/multitrack';
 import { formatPriceInput, parsePriceInput } from '@/lib/priceInput';
+import { findDuplicateMultitrack, isDuplicateMultitrackError, DUPLICATE_MULTITRACK_MESSAGE } from '@/lib/duplicateCheck';
 import { BulkImportDialog } from '@/components/admin/BulkImportDialog';
 import { useUploadQueue } from '@/contexts/UploadQueueContext';
 
@@ -71,7 +72,11 @@ export default function AdminMultitracks() {
           : 'Ela já está visível na loja novamente.',
       });
     } catch (error: any) {
-      toast({ title: 'Erro ao atualizar status', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Erro ao atualizar status',
+        description: isDuplicateMultitrackError(error) ? DUPLICATE_MULTITRACK_MESSAGE : error.message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -176,7 +181,7 @@ export default function AdminMultitracks() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // For new multitracks, require audio file
@@ -196,6 +201,24 @@ export default function AdminMultitracks() {
         description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
         variant: 'destructive',
       });
+      return;
+    }
+
+    // Catch it here, before a multi-minute Drive upload starts - the DB's
+    // own unique index (see migration 20260722020000) is the real guard for
+    // races/other entry points, this is just the friendly early warning.
+    try {
+      const duplicate = await findDuplicateMultitrack(
+        formData.artist_name,
+        formData.song_name,
+        editingMultitrack?.id
+      );
+      if (duplicate) {
+        toast({ title: 'Multitrack já cadastrada', description: DUPLICATE_MULTITRACK_MESSAGE, variant: 'destructive' });
+        return;
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro ao verificar duplicidade', description: error.message, variant: 'destructive' });
       return;
     }
 

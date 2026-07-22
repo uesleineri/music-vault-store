@@ -23,6 +23,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { uploadAudioToDrive, guessArtistAndSong } from '@/lib/driveUpload';
+import { findDuplicateMultitrack, isDuplicateMultitrackError, DUPLICATE_MULTITRACK_MESSAGE } from '@/lib/duplicateCheck';
 
 type RowStatus = 'pending' | 'uploading' | 'done' | 'error';
 
@@ -94,6 +95,33 @@ export function BulkImportDialog({ open, onOpenChange }: BulkImportDialogProps) 
     let successCount = 0;
     const totalToProcess = rows.length;
 
+    // Catch duplicates before wasting a Drive upload on them: both against
+    // songs already catalogued, and against another row earlier in this
+    // very same batch (e.g. the same file picked twice by mistake).
+    const duplicateKeys = new Set<string>();
+    const seenInBatch = new Map<string, string>();
+    for (const row of rows) {
+      if (row.status === 'done') continue;
+      const normKey = `${row.artist_name.trim().toLowerCase()}|${row.song_name.trim().toLowerCase()}`;
+      if (seenInBatch.has(normKey)) {
+        updateRow(row.key, { status: 'error', errorMessage: 'Duplicada nesta mesma importação.' });
+        duplicateKeys.add(row.key);
+        continue;
+      }
+      seenInBatch.set(normKey, row.key);
+
+      try {
+        const existing = await findDuplicateMultitrack(row.artist_name, row.song_name);
+        if (existing) {
+          updateRow(row.key, { status: 'error', errorMessage: DUPLICATE_MULTITRACK_MESSAGE });
+          duplicateKeys.add(row.key);
+        }
+      } catch {
+        // Best-effort pre-check - the DB's unique index still catches a real
+        // duplicate at insert time below if this lookup itself failed.
+      }
+    }
+
     // Sequential on purpose: keeps Drive API usage predictable and gives clear
     // per-item progress instead of racing many huge uploads at once.
     for (const row of rows) {
@@ -101,6 +129,7 @@ export function BulkImportDialog({ open, onOpenChange }: BulkImportDialogProps) 
         successCount++;
         continue;
       }
+      if (duplicateKeys.has(row.key)) continue;
 
       updateRow(row.key, { status: 'uploading', progress: 0, errorMessage: undefined });
 
@@ -127,7 +156,10 @@ export function BulkImportDialog({ open, onOpenChange }: BulkImportDialogProps) 
       });
 
       if (insertError) {
-        updateRow(row.key, { status: 'error', errorMessage: insertError.message });
+        updateRow(row.key, {
+          status: 'error',
+          errorMessage: isDuplicateMultitrackError(insertError) ? DUPLICATE_MULTITRACK_MESSAGE : insertError.message,
+        });
         continue;
       }
 
