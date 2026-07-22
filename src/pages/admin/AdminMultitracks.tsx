@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Music, Loader2, Search, Image, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Pencil, Trash2, Music, Loader2, Search, Image, ChevronLeft, ChevronRight, HardDrive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -40,6 +41,7 @@ import { formatPriceInput, parsePriceInput } from '@/lib/priceInput';
 import { findDuplicateMultitrack, isDuplicateMultitrackError, DUPLICATE_MULTITRACK_MESSAGE } from '@/lib/duplicateCheck';
 import { BulkImportDialog } from '@/components/admin/BulkImportDialog';
 import { useUploadQueue } from '@/contexts/UploadQueueContext';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 
 const PAGE_SIZE = 10;
 // Asaas rejects any PIX charge under R$5 outright - create-payment enforces
@@ -56,10 +58,37 @@ export default function AdminMultitracks() {
   const deleteMultitrack = useDeleteMultitrack();
   const { toast } = useToast();
   const { enqueueMultitrackUpload } = useUploadQueue();
+  const queryClient = useQueryClient();
+  const [isBackfillingSizes, setIsBackfillingSizes] = useState(false);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     setPage(1);
+  };
+
+  // One-off maintenance action for multitracks catalogued before
+  // file_size_bytes existed - looks the real size up in Drive directly,
+  // no need to re-upload anything.
+  const handleBackfillFileSizes = async () => {
+    setIsBackfillingSizes(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-file-sizes');
+      if (error) throw error;
+
+      const failedNames = (data.failedItems ?? []).map((f: { label: string }) => f.label).join(', ');
+      toast({
+        title: 'Tamanhos atualizados',
+        description: `${data.updated} multitrack(s) atualizada(s)${
+          data.failed ? `. Não encontrada(s) no Drive: ${failedNames} - verifique nos Logs de Auditoria.` : '.'
+        }`,
+        variant: data.failed ? 'destructive' : 'default',
+      });
+      queryClient.invalidateQueries({ queryKey: ['multitracks'] });
+    } catch (error: any) {
+      toast({ title: 'Erro ao atualizar tamanhos', description: await getFunctionErrorMessage(error), variant: 'destructive' });
+    } finally {
+      setIsBackfillingSizes(false);
+    }
   };
 
   const handleToggleActive = async (multitrack: Multitrack) => {
@@ -311,6 +340,16 @@ export default function AdminMultitracks() {
         <Button variant="outline" className="gap-2" onClick={() => setIsBulkImportOpen(true)}>
           <Plus className="h-4 w-4" />
           Importar em lote
+        </Button>
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={handleBackfillFileSizes}
+          disabled={isBackfillingSizes}
+          title="Preenche o tamanho do arquivo das multitracks cadastradas antes dessa informação existir"
+        >
+          {isBackfillingSizes ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDrive className="h-4 w-4" />}
+          Preencher tamanhos
         </Button>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
