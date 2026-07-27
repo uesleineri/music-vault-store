@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Package, Loader2, Copy, Check, QrCode, Tag, X } from 'lucide-react';
+import { ArrowLeft, Package, Loader2, Copy, Check, QrCode, Tag, X, CheckCircle2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { CheckoutStepper } from '@/components/CheckoutStepper';
 import { PixCountdown } from '@/components/PixCountdown';
 import { useBundle } from '@/hooks/useBundles';
+import { usePaymentStatusPoll } from '@/hooks/usePaymentStatusPoll';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getFunctionErrorMessage } from '@/lib/functionError';
@@ -33,12 +34,15 @@ export default function KitCheckout() {
     expiration: string;
     amount: number;
   } | null>(null);
+  const [saleId, setSaleId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [couponCode, setCouponCode] = useState('');
   const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number; finalPrice: number } | null>(null);
+
+  const { status: paymentStatus, downloadToken } = usePaymentStatusPoll(saleId, !!pixData);
 
   const formatCpf = (value: string) => {
     const numbers = value.replace(/\D/g, '').slice(0, 11);
@@ -162,6 +166,7 @@ export default function KitCheckout() {
           expiration: data.pix_expiration,
           amount: data.amount,
         });
+        setSaleId(data.sale_id);
         logFunnelEvent('pix_generated', { checkoutGroupId: data.sale_id, productRef: bundle?.id });
         toast({ title: 'PIX gerado!', description: 'Escaneie o QR Code ou copie o código para pagar.' });
       }
@@ -203,6 +208,36 @@ export default function KitCheckout() {
       toast({ title: 'Código copiado!', description: 'Cole no app do seu banco para pagar.' });
       setTimeout(() => setCopied(false), 3000);
     };
+
+    if (paymentStatus === 'paid') {
+      return (
+        <div className="container py-8 max-w-lg animate-fade-in">
+          <CheckoutStepper currentStep="concluido" className="mb-8" />
+          <div className="text-center mb-8">
+            <div className="h-20 w-20 mx-auto bg-success/10 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="h-10 w-10 text-success" />
+            </div>
+            <h1 className="text-3xl font-bold mb-2">Pagamento confirmado!</h1>
+            <p className="text-muted-foreground">
+              Enviamos o link de download para <strong>{email}</strong>
+            </p>
+          </div>
+          <div className="space-y-3">
+            {downloadToken && (
+              <Link to={`/download/${downloadToken}`}>
+                <Button size="lg" className="w-full gap-2">
+                  <Download className="h-5 w-5" />
+                  Baixar agora
+                </Button>
+              </Link>
+            )}
+            <Link to="/kits">
+              <Button variant="outline" className="w-full">Voltar aos kits</Button>
+            </Link>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="container py-8 max-w-lg animate-fade-in">

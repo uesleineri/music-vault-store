@@ -16,6 +16,14 @@ function formatRemaining(ms: number): string {
   return hours > 0 ? `${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s` : `${pad(minutes)}m ${pad(seconds)}s`;
 }
 
+// Some Asaas accounts accept an overdue PIX for a long grace window after
+// the charge's due date (a merchant billing setting, not something this app
+// controls) - `expiresAt` can legitimately be months out. A ticking
+// per-second countdown only makes sense as urgency messaging when the
+// deadline is actually near; past this threshold there's nothing urgent to
+// show, so the banner doesn't render at all.
+const MAX_DISPLAYED_MS = 24 * 60 * 60 * 1000;
+
 // Counts down to the real expiration Asaas set on this PIX charge
 // (pixData.expiration, returned by create-payment) - not an artificial
 // urgency timer. Once it hits zero the QR/copy-paste code no longer accepts
@@ -29,6 +37,8 @@ export function PixCountdown({ expiresAt, className }: PixCountdownProps) {
     }, 1000);
     return () => clearInterval(interval);
   }, [expiresAt]);
+
+  if (remainingMs > MAX_DISPLAYED_MS) return null;
 
   const expired = remainingMs <= 0;
 
