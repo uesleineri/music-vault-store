@@ -8,6 +8,7 @@ import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 
 // Landing page for Supabase's invite/recovery email links. The client
 // parses the session out of the URL hash on load (detectSessionInUrl
@@ -42,10 +43,14 @@ export default function SetPassword() {
     e.preventDefault();
     setIsResending(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resendEmail, {
-        redirectTo: `${window.location.origin}/minha-conta/definir-senha`,
+      // Routed through request-password-reset (not resetPasswordForEmail
+      // directly) so this public, unauthenticated form can't be used to
+      // spam an arbitrary inbox with reset-link emails - the function
+      // rate-limits repeated requests for the same email/IP server-side.
+      const { error } = await supabase.functions.invoke('request-password-reset', {
+        body: { email: resendEmail },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       setResendSent(true);
     } catch (error: any) {
       toast({ title: 'Erro ao enviar e-mail', description: error.message, variant: 'destructive' });

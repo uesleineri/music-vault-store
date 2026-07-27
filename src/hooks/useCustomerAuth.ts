@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 
 // Same session mechanics as the admin's useAuth, but with none of the
 // MFA/admin_users logic - a customer is just "someone with a Supabase Auth
@@ -48,12 +49,16 @@ export function useCustomerAuth() {
 
   // Same email-based entry point for "esqueci a senha" and "ainda não
   // defini uma senha" - a buyer who never opened their invite email lands
-  // here too, and this sends them a working link either way.
+  // here too, and this sends them a working link either way. Routed through
+  // request-password-reset (not resetPasswordForEmail directly) so repeated
+  // requests for the same email/IP get rate-limited server-side - this is a
+  // public, unauthenticated action, otherwise it's a way to spam anyone's
+  // inbox with reset-link emails.
   const requestPasswordReset = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/minha-conta/definir-senha`,
+    const { error } = await supabase.functions.invoke('request-password-reset', {
+      body: { email },
     });
-    if (error) throw error;
+    if (error) throw new Error(await getFunctionErrorMessage(error));
   };
 
   return { user, session, loading, signIn, signOut, requestPasswordReset };

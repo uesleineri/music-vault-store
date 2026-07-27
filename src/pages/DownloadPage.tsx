@@ -132,7 +132,7 @@ export default function DownloadPage() {
                   <h3 className="font-semibold truncate">{file.song_name}</h3>
                   <p className="text-sm text-muted-foreground truncate">{file.artist_name}</p>
                 </div>
-                <a href={file.download_url} download>
+                <a href={file.download_url} download target="_blank" rel="noopener noreferrer">
                   <Button size="icon" variant="secondary">
                     <Download className="h-4 w-4" />
                   </Button>
