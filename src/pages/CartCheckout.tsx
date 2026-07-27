@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CheckoutStepper } from '@/components/CheckoutStepper';
+import { PixCountdown } from '@/components/PixCountdown';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -202,13 +204,17 @@ export default function CartCheckout() {
 
     return (
       <div className="container py-8 max-w-lg animate-fade-in">
-        <div className="text-center mb-8">
+        <CheckoutStepper currentStep="pagamento" className="mb-8" />
+
+        <div className="text-center mb-6">
           <div className="h-20 w-20 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-6">
             <QrCode className="h-10 w-10 text-primary" />
           </div>
           <h1 className="text-3xl font-bold mb-2">Pague com PIX</h1>
           <p className="text-muted-foreground">Escaneie o QR Code ou copie o código para pagar</p>
         </div>
+
+        <PixCountdown expiresAt={pixData.expiration} className="mb-6" />
 
         <Card className="mb-6">
           <CardContent className="p-4 flex items-center justify-between">
@@ -268,6 +274,8 @@ export default function CartCheckout() {
         <ArrowLeft className="h-4 w-4" />
         Voltar ao carrinho
       </Link>
+
+      <CheckoutStepper currentStep="dados" className="mb-8" />
 
       <div className="grid gap-8">
         <Card>
@@ -389,16 +397,21 @@ export default function CartCheckout() {
                     <Link to="/privacidade" target="_blank" className="underline hover:no-underline">Política de Privacidade</Link>.
                   </Label>
                 </div>
-                <Button type="submit" size="lg" className="w-full" disabled={isProcessing || !acceptedTerms}>
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      Processando...
-                    </>
-                  ) : (
-                    'Continuar para pagamento'
-                  )}
-                </Button>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" size="lg" className="flex-1" disabled={isProcessing} asChild>
+                    <Link to="/cart">Voltar</Link>
+                  </Button>
+                  <Button type="submit" size="lg" className="flex-1" disabled={isProcessing || !acceptedTerms}>
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      'Continuar para pagamento'
+                    )}
+                  </Button>
+                </div>
               </div>
             </form>
           </CardContent>
