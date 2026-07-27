@@ -373,7 +373,7 @@ export default function Checkout() {
 
       <CheckoutStepper currentStep="dados" className="mb-8" />
 
-      <div className="grid gap-8">
+      <div className="grid grid-cols-1 gap-8">
         {/* Order Summary */}
         <Card>
           <CardHeader>
@@ -528,7 +528,7 @@ export default function Checkout() {
                     <Link to="/privacidade" target="_blank" className="underline hover:no-underline">Política de Privacidade</Link>.
                   </Label>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button type="button" variant="outline" size="lg" className="flex-1" disabled={isProcessing} asChild>
                     <Link to={`/multitrack/${multitrack.id}`}>Voltar</Link>
                   </Button>
