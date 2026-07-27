@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -9,8 +8,9 @@ export function Header() {
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-          <Music className="h-6 w-6" />
-          <span>Multitracks</span>
+          <img src="/logo-gospel-vs-icon-transparent.png" alt="" className="h-10 w-10 dark:hidden" />
+          <img src="/logo-gospel-vs-icon-transparent-white.png" alt="" className="hidden h-10 w-10 dark:block" />
+          <span>Gospel VS</span>
         </Link>
         <nav className="flex items-center gap-4">
           <Link to="/catalog">

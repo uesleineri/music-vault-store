@@ -37,7 +37,8 @@ function AdminLayoutContent() {
       <aside className="w-64 border-r bg-sidebar">
         <div className="p-6">
           <Link to="/admin" className="flex items-center gap-2 font-bold text-xl">
-            <Music className="h-6 w-6" />
+            <img src="/logo-gospel-vs-icon-transparent.png" alt="" className="h-9 w-9 dark:hidden" />
+            <img src="/logo-gospel-vs-icon-transparent-white.png" alt="" className="hidden h-9 w-9 dark:block" />
             <span>Admin</span>
           </Link>
         </div>
