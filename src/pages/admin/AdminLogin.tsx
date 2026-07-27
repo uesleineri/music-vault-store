@@ -4,6 +4,7 @@ import { Music, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/PasswordInput';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -159,9 +160,8 @@ export default function AdminLogin() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="login-password">Senha</Label>
-              <Input
+              <PasswordInput
                 id="login-password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
