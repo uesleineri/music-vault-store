@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,6 +21,7 @@ export function MusicRequestDialog() {
   const { toast } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [artistName, setArtistName] = useState('');
   const [songName, setSongName] = useState('');
   const [keySignature, setKeySignature] = useState('');
@@ -48,16 +49,20 @@ export function MusicRequestDialog() {
         requester_name: requesterName.trim(),
         requester_email: requesterEmail.trim(),
       });
-      toast({ title: 'Solicitação enviada!', description: 'Assim que possível vamos avaliar o pedido.' });
       resetForm();
-      setIsOpen(false);
+      setIsSubmitted(true);
     } catch (error: any) {
       toast({ title: 'Erro ao enviar solicitação', description: error.message, variant: 'destructive' });
     }
   };
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) setIsSubmitted(false);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           variant="outline"
@@ -69,87 +74,100 @@ export function MusicRequestDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Solicitar música</DialogTitle>
-          <DialogDescription>
-            Não encontrou a multitrack que precisa? Nos conte qual é e avaliamos incluir no catálogo.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="requester_name">Seu nome *</Label>
-              <Input
-                id="requester_name"
-                value={requesterName}
-                onChange={(e) => setRequesterName(e.target.value)}
-                placeholder="Nome e sobrenome"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="requester_email">Seu e-mail *</Label>
-              <Input
-                id="requester_email"
-                type="email"
-                value={requesterEmail}
-                onChange={(e) => setRequesterEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-              />
-            </div>
+        {isSubmitted ? (
+          <div className="py-8 text-center">
+            <CheckCircle2 className="h-14 w-14 mx-auto mb-4 text-primary" />
+            <h3 className="text-lg font-semibold mb-1">Solicitação enviada!</h3>
+            <p className="text-muted-foreground mb-6">
+              Assim que possível vamos avaliar o pedido.
+            </p>
+            <Button onClick={() => handleOpenChange(false)}>Fechar</Button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="artist_name">Artista *</Label>
-              <Input
-                id="artist_name"
-                value={artistName}
-                onChange={(e) => setArtistName(e.target.value)}
-                placeholder="Nome do artista"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="song_name">Música *</Label>
-              <Input
-                id="song_name"
-                value={songName}
-                onChange={(e) => setSongName(e.target.value)}
-                placeholder="Nome da música"
-                required
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="key_signature">Tom (opcional)</Label>
-              <Input
-                id="key_signature"
-                value={keySignature}
-                onChange={(e) => setKeySignature(e.target.value)}
-                placeholder="Ex: G, A, D#m"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="version">Versão (opcional)</Label>
-              <Input
-                id="version"
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-                placeholder="Ex: ao vivo, playback"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={createRequest.isPending}>
-              {createRequest.isPending ? 'Enviando...' : 'Enviar solicitação'}
-            </Button>
-          </div>
-        </form>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Solicitar música</DialogTitle>
+              <DialogDescription>
+                Não encontrou a multitrack que precisa? Nos conte qual é e avaliamos incluir no catálogo.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="requester_name">Seu nome *</Label>
+                  <Input
+                    id="requester_name"
+                    value={requesterName}
+                    onChange={(e) => setRequesterName(e.target.value)}
+                    placeholder="Nome e sobrenome"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requester_email">Seu e-mail *</Label>
+                  <Input
+                    id="requester_email"
+                    type="email"
+                    value={requesterEmail}
+                    onChange={(e) => setRequesterEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="artist_name">Artista *</Label>
+                  <Input
+                    id="artist_name"
+                    value={artistName}
+                    onChange={(e) => setArtistName(e.target.value)}
+                    placeholder="Nome do artista"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="song_name">Música *</Label>
+                  <Input
+                    id="song_name"
+                    value={songName}
+                    onChange={(e) => setSongName(e.target.value)}
+                    placeholder="Nome da música"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="key_signature">Tom (opcional)</Label>
+                  <Input
+                    id="key_signature"
+                    value={keySignature}
+                    onChange={(e) => setKeySignature(e.target.value)}
+                    placeholder="Ex: G, A, D#m"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="version">Versão (opcional)</Label>
+                  <Input
+                    id="version"
+                    value={version}
+                    onChange={(e) => setVersion(e.target.value)}
+                    placeholder="Ex: ao vivo, playback"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createRequest.isPending}>
+                  {createRequest.isPending ? 'Enviando...' : 'Enviar solicitação'}
+                </Button>
+              </div>
+            </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
