@@ -9,6 +9,7 @@ import { AdminNotificationsProvider, useAdminNotificationsContext } from '@/cont
 import { UploadQueueProvider } from '@/contexts/UploadQueueContext';
 import { UploadQueueWidget } from '@/components/admin/UploadQueueWidget';
 import { usePendingReviewsCount } from '@/hooks/useReviews';
+import { usePendingMusicRequestsCount } from '@/hooks/useMusicRequests';
 import { useAuditLogUnreadCount } from '@/hooks/useAuditLogs';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +32,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const { unreadCount } = useAdminNotificationsContext();
   const { data: pendingReviewsCount } = usePendingReviewsCount();
   const { data: unreadLogsCount } = useAuditLogUnreadCount();
+  const { data: pendingMusicRequestsCount } = usePendingMusicRequestsCount();
 
   return (
     <nav className="px-3 py-2">
@@ -41,7 +43,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
         const isReviews = item.href === '/admin/reviews';
         const isAuditLogs = item.href === '/admin/audit-logs';
         const badgeCount = isNotifications
-          ? unreadCount
+          ? unreadCount + (pendingMusicRequestsCount ?? 0)
           : isReviews
           ? pendingReviewsCount ?? 0
           : isAuditLogs

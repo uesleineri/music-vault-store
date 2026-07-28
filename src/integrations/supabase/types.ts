@@ -361,6 +361,42 @@ export type Database = {
           },
         ]
       }
+      music_requests: {
+        Row: {
+          artist_name: string
+          created_at: string
+          id: string
+          key_signature: string | null
+          requester_email: string
+          requester_name: string
+          song_name: string
+          status: string
+          version: string | null
+        }
+        Insert: {
+          artist_name: string
+          created_at?: string
+          id?: string
+          key_signature?: string | null
+          requester_email: string
+          requester_name: string
+          song_name: string
+          status?: string
+          version?: string | null
+        }
+        Update: {
+          artist_name?: string
+          created_at?: string
+          id?: string
+          key_signature?: string | null
+          requester_email?: string
+          requester_name?: string
+          song_name?: string
+          status?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       review_summaries: {

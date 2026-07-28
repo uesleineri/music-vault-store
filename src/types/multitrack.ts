@@ -87,6 +87,18 @@ export interface ReviewSummary {
   average_rating: number;
 }
 
+export interface MusicRequest {
+  id: string;
+  artist_name: string;
+  song_name: string;
+  key_signature: string | null;
+  version: string | null;
+  requester_name: string;
+  requester_email: string;
+  status: 'pending' | 'done';
+  created_at: string;
+}
+
 export interface AdminUser {
   id: string;
   user_id: string;

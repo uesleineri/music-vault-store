@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/SearchBar';
 import { MultitrackCard } from '@/components/MultitrackCard';
 import { BundleCard } from '@/components/BundleCard';
+import { MusicRequestDialog } from '@/components/MusicRequestDialog';
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
 import { useMultitracks } from '@/hooks/useMultitracks';
 import { useBundles } from '@/hooks/useBundles';
@@ -126,11 +127,14 @@ export default function Home() {
           <p className="text-primary-foreground/80 mb-6">
             Navegue por todo o nosso catálogo de multitracks.
           </p>
-          <Link to="/catalog">
-            <Button variant="secondary" size="lg">
-              Ver catálogo completo
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link to="/catalog">
+              <Button variant="secondary" size="lg">
+                Ver catálogo completo
+              </Button>
+            </Link>
+            <MusicRequestDialog />
+          </div>
         </div>
       </section>
     </div>
