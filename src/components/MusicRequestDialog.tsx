@@ -78,6 +78,29 @@ export function MusicRequestDialog() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
+              <Label htmlFor="requester_name">Seu nome *</Label>
+              <Input
+                id="requester_name"
+                value={requesterName}
+                onChange={(e) => setRequesterName(e.target.value)}
+                placeholder="Nome e sobrenome"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="requester_email">Seu e-mail *</Label>
+              <Input
+                id="requester_email"
+                type="email"
+                value={requesterEmail}
+                onChange={(e) => setRequesterEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="artist_name">Artista *</Label>
               <Input
                 id="artist_name"
@@ -115,29 +138,6 @@ export function MusicRequestDialog() {
                 value={version}
                 onChange={(e) => setVersion(e.target.value)}
                 placeholder="Ex: ao vivo, playback"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="requester_name">Seu nome *</Label>
-              <Input
-                id="requester_name"
-                value={requesterName}
-                onChange={(e) => setRequesterName(e.target.value)}
-                placeholder="Nome e sobrenome"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="requester_email">Seu e-mail *</Label>
-              <Input
-                id="requester_email"
-                type="email"
-                value={requesterEmail}
-                onChange={(e) => setRequesterEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
               />
             </div>
           </div>
