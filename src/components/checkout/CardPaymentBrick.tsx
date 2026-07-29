@@ -49,10 +49,22 @@ export function CardPaymentBrick({ mp, amount, payerEmail, onSubmit, onError, on
           // loudly, which is exactly the bug we chased for hours.
           onReady: () => onReady?.(),
           onSubmit: (cardFormData: any, additionalData: any) => {
+            // TEMPORARY debug logging - remove once we see the real shape of
+            // what this SDK version actually hands us for credit vs debit.
+            let controllerAdditionalData: unknown;
+            try {
+              controllerAdditionalData = controllerRef.current?.getAdditionalData?.();
+            } catch (e) {
+              controllerAdditionalData = `getAdditionalData() threw: ${e}`;
+            }
+            console.log('[CardPaymentBrick DEBUG] cardFormData:', JSON.stringify(cardFormData));
+            console.log('[CardPaymentBrick DEBUG] additionalData (2nd onSubmit arg):', JSON.stringify(additionalData));
+            console.log('[CardPaymentBrick DEBUG] controller.getAdditionalData():', JSON.stringify(controllerAdditionalData));
+
             // Some SDK versions only populate this via the controller method
             // rather than the callback's second argument - try both.
             const paymentTypeId =
-              additionalData?.paymentTypeId ?? controllerRef.current?.getAdditionalData?.()?.paymentTypeId ?? "credit_card";
+              additionalData?.paymentTypeId ?? (controllerAdditionalData as any)?.paymentTypeId ?? "credit_card";
             return onSubmit({
               token: cardFormData.token,
               payment_method_id: cardFormData.payment_method_id,
