@@ -24,6 +24,11 @@ interface CreatePaymentRequest {
   card_token?: string;
   card_payment_method_id?: string; // e.g. "master", "visa" - returned by the Card Payment Brick alongside the token
   card_installments?: number;
+  // "credit_card" or "debit_card" - from the Brick's additionalData.paymentTypeId.
+  // A debit card sent as credit_card gets rejected ("insufficient_amount",
+  // which is misleadingly named - it really means the card has no funds for
+  // that transaction type).
+  card_payment_type_id?: string;
 }
 
 interface ResolvedItem {
@@ -77,6 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
       card_token,
       card_payment_method_id,
       card_installments,
+      card_payment_type_id,
     }: CreatePaymentRequest = await req.json();
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -292,7 +298,10 @@ const handler = async (req: Request): Promise<Response> => {
               amount: amountStr,
               payment_method: {
                 id: card_payment_method_id,
-                type: "credit_card",
+                // Forwarded from the Brick's own paymentTypeId - a debit
+                // card forced through as "credit_card" gets declined by the
+                // issuer ("insufficient_amount", confirmed in production).
+                type: card_payment_type_id || "credit_card",
                 token: card_token,
                 installments: card_installments && card_installments > 0 ? card_installments : 1,
               },

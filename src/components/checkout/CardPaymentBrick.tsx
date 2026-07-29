@@ -5,6 +5,10 @@ interface CardTokenData {
   token: string;
   payment_method_id: string;
   installments: number;
+  // "credit_card" or "debit_card" - only onSubmit's second argument
+  // (additionalData.paymentTypeId) tells us this; the card's own brand
+  // (payment_method_id, e.g. "master") is the same either way.
+  payment_type_id: string;
 }
 
 interface CardPaymentBrickProps {
@@ -44,12 +48,18 @@ export function CardPaymentBrick({ mp, amount, payerEmail, onSubmit, onError, on
           // stuck on its loading skeleton indefinitely instead of failing
           // loudly, which is exactly the bug we chased for hours.
           onReady: () => onReady?.(),
-          onSubmit: (cardFormData: any) =>
-            onSubmit({
+          onSubmit: (cardFormData: any, additionalData: any) => {
+            // Some SDK versions only populate this via the controller method
+            // rather than the callback's second argument - try both.
+            const paymentTypeId =
+              additionalData?.paymentTypeId ?? controllerRef.current?.getAdditionalData?.()?.paymentTypeId ?? "credit_card";
+            return onSubmit({
               token: cardFormData.token,
               payment_method_id: cardFormData.payment_method_id,
               installments: cardFormData.installments,
-            }),
+              payment_type_id: paymentTypeId,
+            });
+          },
           onError: (error: unknown) => onError?.(error),
         },
       })

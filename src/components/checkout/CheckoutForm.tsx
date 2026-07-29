@@ -123,7 +123,7 @@ export function CheckoutForm({
     setCouponCode('');
   };
 
-  const submitOrder = async (cardData?: { token: string; payment_method_id: string; installments: number }) => {
+  const submitOrder = async (cardData?: { token: string; payment_method_id: string; installments: number; payment_type_id: string }) => {
     const { data, error } = await supabase.functions.invoke('create-payment', {
       body: {
         items,
@@ -134,7 +134,15 @@ export function CheckoutForm({
         coupon_code: appliedCoupon?.code,
         payment_method: cardData ? 'credit_card' : 'pix',
         ...(cardData
-          ? { card_token: cardData.token, card_payment_method_id: cardData.payment_method_id, card_installments: cardData.installments }
+          ? {
+              card_token: cardData.token,
+              card_payment_method_id: cardData.payment_method_id,
+              card_installments: cardData.installments,
+              // Debit cards rejected as "insufficient_amount" when sent as
+              // credit_card - the Brick's own paymentTypeId tells us which it
+              // really is (a card's brand id like "master" doesn't).
+              card_payment_type_id: cardData.payment_type_id,
+            }
           : {}),
       },
     });
@@ -177,7 +185,7 @@ export function CheckoutForm({
     }
   };
 
-  const handleCardSubmit = async (cardData: { token: string; payment_method_id: string; installments: number }) => {
+  const handleCardSubmit = async (cardData: { token: string; payment_method_id: string; installments: number; payment_type_id: string }) => {
     setIsProcessing(true);
     try {
       const data = await submitOrder(cardData);
