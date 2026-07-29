@@ -48,30 +48,15 @@ export function CardPaymentBrick({ mp, amount, payerEmail, onSubmit, onError, on
           // stuck on its loading skeleton indefinitely instead of failing
           // loudly, which is exactly the bug we chased for hours.
           onReady: () => onReady?.(),
-          onSubmit: (cardFormData: any, additionalData: any) => {
-            // TEMPORARY debug logging - remove once we see the real shape of
-            // what this SDK version actually hands us for credit vs debit.
-            let controllerAdditionalData: unknown;
-            try {
-              controllerAdditionalData = controllerRef.current?.getAdditionalData?.();
-            } catch (e) {
-              controllerAdditionalData = `getAdditionalData() threw: ${e}`;
-            }
-            console.log('[CardPaymentBrick DEBUG] cardFormData:', JSON.stringify(cardFormData));
-            console.log('[CardPaymentBrick DEBUG] additionalData (2nd onSubmit arg):', JSON.stringify(additionalData));
-            console.log('[CardPaymentBrick DEBUG] controller.getAdditionalData():', JSON.stringify(controllerAdditionalData));
-
-            // Some SDK versions only populate this via the controller method
-            // rather than the callback's second argument - try both.
-            const paymentTypeId =
-              additionalData?.paymentTypeId ?? (controllerAdditionalData as any)?.paymentTypeId ?? "credit_card";
-            return onSubmit({
+          onSubmit: (cardFormData: any, additionalData: any) =>
+            onSubmit({
               token: cardFormData.token,
               payment_method_id: cardFormData.payment_method_id,
               installments: cardFormData.installments,
-              payment_type_id: paymentTypeId,
-            });
-          },
+              // additionalData.paymentTypeId is "credit_card" or "debit_card" -
+              // confirmed present as the callback's second argument.
+              payment_type_id: additionalData?.paymentTypeId ?? "credit_card",
+            }),
           onError: (error: unknown) => onError?.(error),
         },
       })

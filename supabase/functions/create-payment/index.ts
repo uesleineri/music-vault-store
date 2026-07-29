@@ -335,13 +335,20 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify(orderBody),
     });
 
-    const order = await orderResponse.json();
-    console.log("Mercado Pago order response:", JSON.stringify(redactPII(order)));
+    const orderResponseBody = await orderResponse.json();
+    console.log("Mercado Pago order response:", JSON.stringify(redactPII(orderResponseBody)));
+
+    // When a transaction fails synchronously (e.g. a declined card), Mercado
+    // Pago wraps the actual order under a top-level "data" key alongside an
+    // "errors" array - the order itself (id, status, transactions) is still
+    // there, just nested. Reading it at the top level (as we did before)
+    // made every real decline look like our own request failed outright.
+    const order = orderResponseBody?.data ?? orderResponseBody;
 
     const orderPayment = order?.transactions?.payments?.[0];
     if (!order?.id || !orderPayment?.id) {
-      console.error("Order creation failed:", redactPII(order));
-      throw new Error(`Failed to create order: ${JSON.stringify(redactPII(order))}`);
+      console.error("Order creation failed:", redactPII(orderResponseBody));
+      throw new Error(`Failed to create order: ${JSON.stringify(redactPII(orderResponseBody))}`);
     }
 
     // Update every row in the group with the same order/payment id.
