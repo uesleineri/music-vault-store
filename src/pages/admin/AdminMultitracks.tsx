@@ -44,11 +44,10 @@ import { useUploadQueue } from '@/contexts/UploadQueueContext';
 import { getFunctionErrorMessage } from '@/lib/functionError';
 
 const PAGE_SIZE = 10;
-// Mercado Pago rejects card charges under R$5 (status_detail
-// "insufficient_amount", confirmed in production) - Pix itself has no such
-// floor, but a product can be paid either way, so the higher one applies.
-// create-payment enforces this too, but blocking it here avoids a checkout
-// ever failing on it.
+// Conservative safety floor, not a gateway-mandated minimum - Pix confirmed
+// working in production down to R$1; R$5 is just a sane default since a
+// product can be bought either way. create-payment enforces this too, but
+// blocking it here avoids a checkout ever failing on it.
 const MIN_PRICE = 5;
 
 export default function AdminMultitracks() {

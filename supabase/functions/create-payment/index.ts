@@ -216,10 +216,12 @@ const handler = async (req: Request): Promise<Response> => {
       couponId = couponResult.coupon.id;
     }
 
-    // Confirmed against production: Mercado Pago rejects credit card charges
-    // under R$5 with status_detail "insufficient_amount" (a card network/issuer
-    // rule, not something we can lower) - Pix has no such floor, confirmed
-    // working down to R$1.
+    // Conservative safety floors, not gateway-mandated minimums - Pix
+    // confirmed working in production down to R$1. Card's R$5 floor is just
+    // a sane default; a card decline with status_detail "insufficient_amount"
+    // means the *card itself* lacks available funds/limit, not that the
+    // charge was too small (verified against Mercado Pago's own docs after
+    // initially misreading it as an amount-minimum rule).
     const minAmount = payment_method === "credit_card" ? 5 : 1;
     if (totalAmount > 0 && totalAmount < minAmount) {
       return new Response(
