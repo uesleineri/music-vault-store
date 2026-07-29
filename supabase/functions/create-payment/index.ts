@@ -216,12 +216,14 @@ const handler = async (req: Request): Promise<Response> => {
       couponId = couponResult.coupon.id;
     }
 
-    // Mercado Pago's Pix/card fee is a flat percentage (no fixed floor like
-    // Asaas' old R$5 minimum) - this is a conservative safety floor of our
-    // own, not a gateway requirement.
-    if (totalAmount > 0 && totalAmount < 1) {
+    // Confirmed against production: Mercado Pago rejects credit card charges
+    // under R$5 with status_detail "insufficient_amount" (a card network/issuer
+    // rule, not something we can lower) - Pix has no such floor, confirmed
+    // working down to R$1.
+    const minAmount = payment_method === "credit_card" ? 5 : 1;
+    if (totalAmount > 0 && totalAmount < minAmount) {
       return new Response(
-        JSON.stringify({ error: `O total da compra (R$ ${totalAmount.toFixed(2).replace(".", ",")}) precisa ser de pelo menos R$ 1,00.` }),
+        JSON.stringify({ error: `O total da compra (R$ ${totalAmount.toFixed(2).replace(".", ",")}) precisa ser de pelo menos R$ ${minAmount.toFixed(2).replace(".", ",")} para pagamento com ${payment_method === "credit_card" ? "cartão" : "PIX"}.` }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }

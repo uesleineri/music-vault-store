@@ -47,9 +47,12 @@ import { sanitizeFileName, uploadToSupabaseStorage } from '@/lib/driveUpload';
 import { formatPriceInput, parsePriceInput } from '@/lib/priceInput';
 import { Bundle } from '@/types/multitrack';
 
-// Conservative safety floor (not a gateway requirement) - create-payment
-// enforces this too, but blocking it here avoids a checkout ever failing on it.
-const MIN_PRICE = 1;
+// Mercado Pago rejects card charges under R$5 (status_detail
+// "insufficient_amount", confirmed in production) - Pix itself has no such
+// floor, but a kit can be paid either way, so the higher one applies.
+// create-payment enforces this too, but blocking it here avoids a checkout
+// ever failing on it.
+const MIN_PRICE = 5;
 
 export default function AdminBundles() {
   const { data: bundles, isLoading } = useBundles({ includeInactive: true });
