@@ -18,6 +18,11 @@ import { getFunctionErrorMessage } from '@/lib/functionError';
 import { logFunnelEvent } from '@/lib/funnel';
 import { formatCpf, validateCpf, formatPhone } from '@/lib/buyerInfo';
 
+// Temporarily off while we sort out Mercado Pago flagging our own test
+// transactions as high-risk - flip back to true once that settles down.
+// Pix is unaffected either way.
+const CARD_PAYMENTS_ENABLED = false;
+
 type CartItemPayload = { multitrack_id: string } | { bundle_id: string };
 type AppliedCoupon = { code: string; discountAmount: number; finalPrice: number };
 type PixResult = { qrCodeImage: string; copyPaste: string; expiration: string; amount: number };
@@ -433,9 +438,14 @@ export function CheckoutForm({
                   <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'pix' | 'credit_card')}>
                     <TabsList className="grid grid-cols-2 w-full">
                       <TabsTrigger value="pix">Pix</TabsTrigger>
-                      <TabsTrigger value="credit_card">Cartão de crédito</TabsTrigger>
+                      <TabsTrigger value="credit_card" disabled={!CARD_PAYMENTS_ENABLED}>Cartão de crédito</TabsTrigger>
                     </TabsList>
                   </Tabs>
+                  {!CARD_PAYMENTS_ENABLED && (
+                    <p className="text-xs text-muted-foreground">
+                      Pagamento com cartão temporariamente indisponível - use o Pix.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-start gap-2 mb-4">
