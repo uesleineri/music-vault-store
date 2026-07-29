@@ -44,9 +44,9 @@ import { useUploadQueue } from '@/contexts/UploadQueueContext';
 import { getFunctionErrorMessage } from '@/lib/functionError';
 
 const PAGE_SIZE = 10;
-// Asaas rejects any PIX charge under R$5 outright - create-payment enforces
-// this too, but blocking it here avoids a checkout ever failing on it.
-const MIN_PRICE = 5;
+// Conservative safety floor (not a gateway requirement) - create-payment
+// enforces this too, but blocking it here avoids a checkout ever failing on it.
+const MIN_PRICE = 1;
 
 export default function AdminMultitracks() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -247,7 +247,7 @@ export default function AdminMultitracks() {
     if (price < MIN_PRICE) {
       toast({
         title: 'Preço muito baixo',
-        description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
+        description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')}.`,
         variant: 'destructive',
       });
       return;
@@ -398,7 +398,7 @@ export default function AdminMultitracks() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.
+                  Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')}.
                 </p>
               </div>
 

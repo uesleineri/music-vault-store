@@ -17,6 +17,13 @@ interface CreatePaymentRequest {
   buyer_cpf: string;
   buyer_phone: string;
   coupon_code?: string;
+  // "pix" generates a QR code; "credit_card" requires a token already
+  // generated client-side via the Mercado Pago SDK (the card number itself
+  // never reaches this backend).
+  payment_method: "pix" | "credit_card";
+  card_token?: string;
+  card_payment_method_id?: string; // e.g. "master", "visa" - returned by the Card Payment Brick alongside the token
+  card_installments?: number;
 }
 
 interface ResolvedItem {
@@ -31,11 +38,14 @@ function redactPII(obj: Record<string, any>): Record<string, any> {
   const maskTail = (value: unknown) =>
     typeof value === "string" && value.length > 2 ? `${value.slice(0, 2)}***${value.slice(-2)}` : "***";
   const redacted: Record<string, any> = { ...obj };
-  for (const key of ["cpfCnpj", "mobilePhone", "phone", "email"]) {
+  for (const key of ["number", "mobilePhone", "phone", "email", "token"]) {
     if (key in redacted) redacted[key] = maskTail(redacted[key]);
   }
-  if (Array.isArray(redacted.data)) {
-    redacted.data = redacted.data.map((item: any) => (item && typeof item === "object" ? redactPII(item) : item));
+  if (redacted.identification && typeof redacted.identification === "object") {
+    redacted.identification = { ...redacted.identification, number: maskTail(redacted.identification.number) };
+  }
+  if (redacted.payer && typeof redacted.payer === "object") {
+    redacted.payer = redactPII(redacted.payer);
   }
   return redacted;
 }
@@ -47,16 +57,27 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
-    if (!asaasApiKey) {
-      throw new Error("ASAAS_API_KEY not configured");
+    const mercadoPagoAccessToken = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN");
+    if (!mercadoPagoAccessToken) {
+      throw new Error("MERCADOPAGO_ACCESS_TOKEN not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { items, buyer_name, buyer_email, buyer_cpf, buyer_phone, coupon_code }: CreatePaymentRequest = await req.json();
+    const {
+      items,
+      buyer_name,
+      buyer_email,
+      buyer_cpf,
+      buyer_phone,
+      coupon_code,
+      payment_method,
+      card_token,
+      card_payment_method_id,
+      card_installments,
+    }: CreatePaymentRequest = await req.json();
 
     if (!Array.isArray(items) || items.length === 0) {
       return new Response(
@@ -67,6 +88,18 @@ const handler = async (req: Request): Promise<Response> => {
     if (items.some((item) => !item.multitrack_id === !item.bundle_id)) {
       return new Response(
         JSON.stringify({ error: "Cada item precisa ter exatamente um de multitrack_id ou bundle_id" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    if (payment_method !== "pix" && payment_method !== "credit_card") {
+      return new Response(
+        JSON.stringify({ error: "Forma de pagamento inválida" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    if (payment_method === "credit_card" && (!card_token || !card_payment_method_id)) {
+      return new Response(
+        JSON.stringify({ error: "Dados do cartão incompletos" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -183,11 +216,12 @@ const handler = async (req: Request): Promise<Response> => {
       couponId = couponResult.coupon.id;
     }
 
-    // Asaas rejects any PIX charge under R$5 outright - catch it here with a
-    // clear message instead of surfacing Asaas' raw API error to the buyer.
-    if (totalAmount > 0 && totalAmount < 5) {
+    // Mercado Pago's Pix/card fee is a flat percentage (no fixed floor like
+    // Asaas' old R$5 minimum) - this is a conservative safety floor of our
+    // own, not a gateway requirement.
+    if (totalAmount > 0 && totalAmount < 1) {
       return new Response(
-        JSON.stringify({ error: `O total da compra (R$ ${totalAmount.toFixed(2).replace(".", ",")}) precisa ser de pelo menos R$ 5,00 - é o mínimo aceito para pagamento via PIX.` }),
+        JSON.stringify({ error: `O total da compra (R$ ${totalAmount.toFixed(2).replace(".", ",")}) precisa ser de pelo menos R$ 1,00.` }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -237,124 +271,105 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (salesError) throw salesError;
 
-    // Create Asaas customer (or find existing)
-    const customerBody = {
-      email: buyer_email,
-      name: buyer_name,
-      cpfCnpj: buyer_cpf,
-      mobilePhone: buyer_phone,
+    const amountStr = totalAmount.toFixed(2);
+    const payments =
+      payment_method === "pix"
+        ? [
+            {
+              amount: amountStr,
+              payment_method: { id: "pix", type: "bank_transfer" },
+              // Same D+1-ish window the Asaas flow used - Mercado Pago's
+              // default is 24h if omitted, this makes it explicit.
+              expiration_time: "P1D",
+            },
+          ]
+        : [
+            {
+              amount: amountStr,
+              payment_method: {
+                id: card_payment_method_id,
+                type: "credit_card",
+                token: card_token,
+                installments: card_installments && card_installments > 0 ? card_installments : 1,
+              },
+            },
+          ];
+
+    const orderBody = {
+      type: "online",
+      total_amount: amountStr,
+      external_reference: checkoutGroupId,
+      processing_mode: "automatic",
+      transactions: { payments },
+      payer: {
+        email: buyer_email,
+        first_name: buyer_name,
+        identification: { type: "CPF", number: buyer_cpf },
+      },
     };
 
-    console.log("Creating customer with body:", JSON.stringify(redactPII(customerBody)));
+    console.log("Creating Mercado Pago order with body:", JSON.stringify(redactPII(orderBody)));
 
-    const customerResponse = await fetch("https://api.asaas.com/v3/customers", {
+    const orderResponse = await fetch("https://api.mercadopago.com/v1/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "access_token": asaasApiKey,
+        "Authorization": `Bearer ${mercadoPagoAccessToken}`,
+        // One key per checkout attempt (the group id) - retrying the same
+        // request never creates a second charge.
+        "X-Idempotency-Key": checkoutGroupId,
       },
-      body: JSON.stringify(customerBody),
+      body: JSON.stringify(orderBody),
     });
 
-    let customer;
-    const customerResponseData = await customerResponse.json();
-    console.log("Customer response status:", customerResponse.status);
-    console.log("Customer response data:", JSON.stringify(redactPII(customerResponseData)));
+    const order = await orderResponse.json();
+    console.log("Mercado Pago order response:", JSON.stringify(redactPII(order)));
 
-    if (customerResponse.status === 409 || customerResponseData.errors?.some((e: any) => e.code === "invalid_cpfCnpj_alreadyInUse")) {
-      // Customer already exists, fetch by CPF
-      console.log("Customer exists, searching by CPF...");
-      const searchResponse = await fetch(
-        `https://api.asaas.com/v3/customers?cpfCnpj=${buyer_cpf}`,
-        {
-          headers: { "access_token": asaasApiKey },
-        }
-      );
-      const searchData = await searchResponse.json();
-      console.log("Search response:", JSON.stringify(redactPII(searchData)));
-      customer = searchData.data?.[0];
-    } else if (customerResponseData.id) {
-      customer = customerResponseData;
-    } else {
-      console.error("Customer creation failed:", redactPII(customerResponseData));
-      throw new Error(`Failed to create customer: ${JSON.stringify(customerResponseData)}`);
+    const orderPayment = order?.transactions?.payments?.[0];
+    if (!order?.id || !orderPayment?.id) {
+      console.error("Order creation failed:", redactPII(order));
+      throw new Error(`Failed to create order: ${JSON.stringify(redactPII(order))}`);
     }
 
-    if (!customer?.id) {
-      throw new Error("Failed to create/find customer");
-    }
-
-    // Create Asaas PIX payment - one payment for the whole cart.
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 1); // Due tomorrow
-
-    const description =
-      resolvedItems.length === 1
-        ? resolvedItems[0].name
-        : `${resolvedItems[0].name} e mais ${resolvedItems.length - 1} item(ns)`;
-
-    const paymentBody = {
-      customer: customer.id,
-      billingType: "PIX", // PIX only
-      value: totalAmount,
-      dueDate: dueDate.toISOString().split("T")[0],
-      description,
-      externalReference: checkoutGroupId,
-    };
-
-    console.log("Creating PIX payment with body:", JSON.stringify(paymentBody));
-
-    const paymentResponse = await fetch("https://api.asaas.com/v3/payments", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "access_token": asaasApiKey,
-      },
-      body: JSON.stringify(paymentBody),
-    });
-
-    const payment = await paymentResponse.json();
-    console.log("Asaas payment response:", JSON.stringify(payment));
-
-    if (!payment?.id) {
-      console.error("Payment creation failed:", payment);
-      throw new Error(`Failed to create payment: ${JSON.stringify(payment)}`);
-    }
-
-    // Update every row in the group with the same payment ID
+    // Update every row in the group with the same order/payment id.
     await supabase
       .from("sales")
-      .update({ payment_id: payment.id })
+      .update({ payment_id: order.id })
       .eq("checkout_group_id", checkoutGroupId);
 
     await notifyAdmins(supabase, "new_sale", sales, buyer_email);
 
-    // Get PIX QR Code
-    const pixResponse = await fetch(
-      `https://api.asaas.com/v3/payments/${payment.id}/pixQrCode`,
-      {
-        headers: { "access_token": asaasApiKey },
-      }
-    );
-
-    const pixData = await pixResponse.json();
-    console.log("PIX QR Code response:", JSON.stringify(pixData));
+    if (payment_method === "pix") {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          sale_id: checkoutGroupId,
+          order_id: order.id,
+          payment_id: orderPayment.id,
+          amount: totalAmount,
+          discount_amount: totalDiscount,
+          payment_method: "pix",
+          pix_qr_code_image: orderPayment.payment_method?.qr_code_base64,
+          pix_copy_paste: orderPayment.payment_method?.qr_code,
+          pix_expiration: orderPayment.date_of_expiration ?? null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         sale_id: checkoutGroupId,
-        payment_id: payment.id,
+        order_id: order.id,
+        payment_id: orderPayment.id,
         amount: totalAmount,
         discount_amount: totalDiscount,
-        pix_qr_code_image: pixData.encodedImage, // Base64 image
-        pix_copy_paste: pixData.payload, // Copy-paste code
-        pix_expiration: pixData.expirationDate,
+        payment_method: "credit_card",
+        status: orderPayment.status,
+        status_detail: orderPayment.status_detail,
       }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
     console.error("Error in create-payment:", error);

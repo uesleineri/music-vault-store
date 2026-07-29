@@ -95,13 +95,13 @@ export default function AdminSales() {
       if (data.already_paid) {
         toast({ title: 'Essa venda já estava marcada como paga.' });
       } else if (data.confirmed) {
-        toast({ title: 'Pagamento confirmado na Asaas!', description: 'Arquivo compartilhado com o comprador.' });
+        toast({ title: 'Pagamento confirmado no Mercado Pago!', description: 'Arquivo compartilhado com o comprador.' });
         queryClient.invalidateQueries({ queryKey: ['sales'] });
         queryClient.invalidateQueries({ queryKey: ['sales-stats'] });
       } else {
         toast({
           title: 'Pagamento ainda não confirmado',
-          description: data.message || `Status na Asaas: ${data.asaas_status}`,
+          description: data.message || `Status no Mercado Pago: ${data.mercadopago_status}`,
           variant: 'destructive',
         });
       }
@@ -599,7 +599,7 @@ export default function AdminSales() {
                                   <AlertDialogTitle>Cancelar esta venda?</AlertDialogTitle>
                                   <AlertDialogDescription>
                                     Marca a venda como "Falhou". Use isso para vendas travadas que nunca vão ser
-                                    pagas (ex: cobrança que nunca chegou a ser criada na Asaas). Não pode ser
+                                    pagas (ex: cobrança que nunca chegou a ser criada no Mercado Pago). Não pode ser
                                     desfeito pelo painel.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>

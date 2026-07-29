@@ -12,7 +12,7 @@ export interface AdminNotification {
 }
 
 // Backed by the admin_notifications table (written server-side by
-// create-payment/asaas-webhook/verify-payment, one row per checkout group) -
+// create-payment/mercadopago-webhook/verify-payment, one row per checkout group) -
 // survives a closed tab and captures orders that happened while no admin was
 // online, unlike the old client-side-only notification list.
 const PAGE_SIZE = 30;

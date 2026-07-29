@@ -43,8 +43,9 @@ const fieldLabels: Record<string, string> = {
   user_id: 'ID do usuário',
   email: 'E-mail',
   payment_status: 'Status do pagamento',
-  asaas_status: 'Status na Asaas',
-  asaas_event: 'Evento da Asaas',
+  mercadopago_status: 'Status no Mercado Pago',
+  mercadopago_order_status: 'Status do pedido no Mercado Pago',
+  mercadopago_payment_status: 'Status do pagamento no Mercado Pago',
   resent_to: 'Reenviado para',
 };
 
@@ -91,10 +92,10 @@ function getActionLabel(log: AuditLog): string {
     'multitrack.delete': 'Excluiu multitrack',
     'admin.add': 'Adicionou administrador',
     'admin.remove': 'Removeu administrador',
-    'sale.verify_payment': 'Verificou pagamento na Asaas',
+    'sale.verify_payment': 'Verificou pagamento no Mercado Pago',
     'sale.resend_download': 'Reenviou download',
-    'sale.payment_confirmed': 'Pagamento confirmado (webhook Asaas)',
-    'sale.payment_failed': 'Pagamento falhou/expirou (webhook Asaas)',
+    'sale.payment_confirmed': 'Pagamento confirmado (webhook Mercado Pago)',
+    'sale.payment_failed': 'Pagamento falhou/expirou (webhook Mercado Pago)',
   };
   return genericLabels[log.action] ?? log.action;
 }

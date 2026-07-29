@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
       <ul className={ul}>
         <li><strong>Nome completo</strong> - identificação do comprador e do pagamento.</li>
         <li><strong>E-mail</strong> - envio do link de download e criação automática do acesso à área "Minha Conta".</li>
-        <li><strong>CPF</strong> - exigido pelo processador de pagamentos (Asaas) para emitir a cobrança PIX.</li>
+        <li><strong>CPF</strong> - exigido pelo processador de pagamentos (Mercado Pago) para emitir a cobrança.</li>
         <li><strong>Telefone/WhatsApp</strong> - contato em caso de problema com o pedido.</li>
       </ul>
       <h3 className={h3}>2.2. Ao usar o site</h3>
@@ -52,7 +52,7 @@ export default function PrivacyPolicy() {
 
       <h2 className={h2}>3. Com quem compartilhamos seus dados</h2>
       <ul className={ul}>
-        <li><strong>Asaas</strong> (processador de pagamentos) - recebe nome, e-mail, CPF e telefone para gerar a cobrança PIX. A Asaas tem sua própria política de privacidade.</li>
+        <li><strong>Mercado Pago</strong> (processador de pagamentos) - recebe nome, e-mail, CPF e telefone para gerar a cobrança, e os dados do cartão (quando essa forma de pagamento é usada) diretamente do seu navegador para a plataforma deles, sem passar pelos nossos servidores. O Mercado Pago tem sua própria política de privacidade.</li>
         <li><strong>Google Drive</strong> - o arquivo comprado é compartilhado diretamente com o e-mail do comprador; o Google envia sua própria notificação de "arquivo compartilhado com você".</li>
         <li><strong>Supabase</strong> (infraestrutura de banco de dados, autenticação e hospedagem) - processa e armazena os dados acima em nosso nome, como operador de dados.</li>
       </ul>

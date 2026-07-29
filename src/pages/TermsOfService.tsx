@@ -25,9 +25,10 @@ export default function TermsOfService() {
 
       <h2 className={h2}>2. Pagamento</h2>
       <p className={p}>
-        O pagamento é processado via PIX através da Asaas. O valor mínimo aceito por cobrança é de
-        R$ 5,00, exigência do próprio meio de pagamento. Uma compra com vários itens (carrinho ou kit)
-        gera uma única cobrança PIX no valor total.
+        O pagamento é processado via PIX ou cartão de crédito através do Mercado Pago. O valor mínimo
+        aceito por cobrança é de R$ 1,00. Uma compra com vários itens (carrinho ou kit) gera uma única
+        cobrança no valor total. Ao pagar com cartão, os dados do cartão são digitados diretamente na
+        plataforma do Mercado Pago e nunca chegam aos nossos servidores.
       </p>
 
       <h2 className={h2}>3. Entrega</h2>

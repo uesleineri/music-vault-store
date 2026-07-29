@@ -1,5 +1,5 @@
 // A cart checkout creates several `sales` rows (one per multitrack/bundle)
-// sharing one `checkout_group_id`, backed by a single Asaas PIX payment.
+// sharing one `checkout_group_id`, backed by a single Mercado Pago order.
 // These helpers let the webhook/verify-payment/resend-download flows treat a
 // single-item purchase and a multi-item cart purchase the same way.
 
@@ -12,7 +12,7 @@ export async function getGroupSales(supabase: any, checkoutGroupId: string) {
   return data ?? [];
 }
 
-// Asaas reports one value/netValue for the whole payment - split the fee
+// Mercado Pago reports one grossValue/netValue for the whole payment - split the fee
 // across the group's rows proportionally to each row's charged amount, so
 // per-sale financial reporting (see AdminFinancial) still adds up correctly.
 // The last row absorbs the rounding remainder so the split sums exactly.
@@ -45,7 +45,7 @@ export function distributeFee(rows: any[], grossValue: number, netValue: number)
   });
 }
 
-// Human-readable label for audit logs and the Asaas payment description.
+// Human-readable label for audit logs and the order's payer identification.
 export function describeGroup(rows: any[]): string {
   const names = rows.map((row) =>
     row.multitrack ? `${row.multitrack.artist_name} - ${row.multitrack.song_name}` : row.bundle?.name ?? "Item"

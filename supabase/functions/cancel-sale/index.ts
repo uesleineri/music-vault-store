@@ -5,8 +5,8 @@ import { logAudit } from "../_shared/audit.ts";
 import { describeGroup } from "../_shared/checkout-group.ts";
 
 // Admin-only: lets an admin manually mark a stuck pending sale as failed -
-// e.g. a checkout whose Asaas payment was never actually created (rejected
-// for being under the R$5 PIX minimum, or any other reason), so
+// e.g. a checkout whose Mercado Pago order was never actually created
+// (rejected for being under the minimum charge, or any other reason), so
 // verify-payment has nothing to check and the row would sit "pending"
 // forever otherwise.
 const handler = async (req: Request): Promise<Response> => {

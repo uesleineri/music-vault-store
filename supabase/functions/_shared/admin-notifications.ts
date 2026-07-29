@@ -2,7 +2,7 @@
 // survives a closed tab and captures events that happened while no admin was
 // online - unlike the old client-side-only notification state. Called once
 // per checkout-group action (not per sales row), from create-payment (new
-// order) and asaas-webhook/verify-payment (payment confirmed).
+// order) and mercadopago-webhook/verify-payment (payment confirmed).
 
 const formatAmount = (amount: number) => `R$ ${Number(amount).toFixed(2).replace(".", ",")}`;
 

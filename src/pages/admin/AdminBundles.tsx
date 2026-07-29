@@ -47,7 +47,9 @@ import { sanitizeFileName, uploadToSupabaseStorage } from '@/lib/driveUpload';
 import { formatPriceInput, parsePriceInput } from '@/lib/priceInput';
 import { Bundle } from '@/types/multitrack';
 
-const MIN_PRICE = 5;
+// Conservative safety floor (not a gateway requirement) - create-payment
+// enforces this too, but blocking it here avoids a checkout ever failing on it.
+const MIN_PRICE = 1;
 
 export default function AdminBundles() {
   const { data: bundles, isLoading } = useBundles({ includeInactive: true });
@@ -128,7 +130,7 @@ export default function AdminBundles() {
     if (parsePriceInput(formData.price) < MIN_PRICE) {
       toast({
         title: 'Preço muito baixo',
-        description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.`,
+        description: `O preço mínimo é R$ ${MIN_PRICE.toFixed(2).replace('.', ',')}.`,
         variant: 'destructive',
       });
       return;
@@ -252,7 +254,7 @@ export default function AdminBundles() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')} - é o valor mínimo aceito pela Asaas para pagamento via PIX.
+                  Mínimo de R$ {MIN_PRICE.toFixed(2).replace('.', ',')}.
                 </p>
               </div>
 

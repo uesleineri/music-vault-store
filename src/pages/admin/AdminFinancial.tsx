@@ -162,7 +162,7 @@ export default function AdminFinancial() {
   }, [paidSales]);
 
   const handleExportCsv = () => {
-    const header = ['Data', 'Música', 'Artista', 'Comprador', 'Receita Bruta', 'Taxa Asaas', 'Lucro Líquido'];
+    const header = ['Data', 'Música', 'Artista', 'Comprador', 'Receita Bruta', 'Taxa Mercado Pago', 'Lucro Líquido'];
     const rows = paidSales.map((sale) => {
       const fee = sale.asaas_fee != null ? Number(sale.asaas_fee) : null;
       const net = fee != null ? Number(sale.amount) - fee : null;
@@ -195,7 +195,7 @@ export default function AdminFinancial() {
         <div>
           <h2 className="text-2xl font-bold">Financeiro</h2>
           <p className="text-muted-foreground">
-            Receita bruta, taxas da Asaas e lucro líquido
+            Receita bruta, taxas do Mercado Pago e lucro líquido
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ export default function AdminFinancial() {
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
           <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-destructive" />
           <p>
-            {totals.salesMissingFeeData} venda(s) pagas neste período não têm a taxa da Asaas
+            {totals.salesMissingFeeData} venda(s) pagas neste período não têm a taxa do Mercado Pago
             registrada (confirmadas antes do módulo financeiro existir) — foram contadas com taxa
             R$ 0,00, então "Taxas" e "Lucro Líquido" estão levemente superestimados até que os
             dados fiquem completos.
@@ -246,7 +246,7 @@ export default function AdminFinancial() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Taxas Asaas
+              Taxas Mercado Pago
             </CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>

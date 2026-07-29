@@ -3,7 +3,7 @@ project_id = "nhbuivrsbiivimeoyqqr"
 [functions.create-payment]
 verify_jwt = false
 
-[functions.asaas-webhook]
+[functions.mercadopago-webhook]
 verify_jwt = false
 
 [functions.get-download]

@@ -68,7 +68,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!sale.payment_id) {
-      return new Response(JSON.stringify({ error: "Venda sem payment_id da Asaas" }), {
+      return new Response(JSON.stringify({ error: "Venda sem payment_id do Mercado Pago" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
@@ -81,24 +81,24 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
-    if (!asaasApiKey) {
-      throw new Error("ASAAS_API_KEY not configured");
+    const mercadoPagoAccessToken = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN");
+    if (!mercadoPagoAccessToken) {
+      throw new Error("MERCADOPAGO_ACCESS_TOKEN not configured");
     }
 
-    // Ask Asaas directly for the real payment status - never trust a manual click alone.
-    const asaasResponse = await fetch(`https://api.asaas.com/v3/payments/${sale.payment_id}`, {
-      headers: { access_token: asaasApiKey },
+    // Ask Mercado Pago directly for the real order status - never trust a manual click alone.
+    // sale.payment_id holds the Order id (create-payment stores order.id there).
+    const orderResponse = await fetch(`https://api.mercadopago.com/v1/orders/${sale.payment_id}`, {
+      headers: { Authorization: `Bearer ${mercadoPagoAccessToken}` },
     });
-    const asaasPayment = await asaasResponse.json();
+    const order = await orderResponse.json();
 
-    const confirmedStatuses = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"];
-    if (!confirmedStatuses.includes(asaasPayment.status)) {
+    if (order?.status !== "processed") {
       return new Response(
         JSON.stringify({
           confirmed: false,
-          asaas_status: asaasPayment.status,
-          message: `Asaas reporta status "${asaasPayment.status}" - pagamento ainda não confirmado.`,
+          mercadopago_status: order?.status,
+          message: `Mercado Pago reporta status "${order?.status}" - pagamento ainda não confirmado.`,
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
@@ -114,18 +114,30 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (updateError) throw updateError;
 
-    // Same value/netValue fields Asaas sends on the webhook payload are also
-    // present on this GET response - split them across the group here too,
-    // since a sale can be confirmed via manual verification instead of the webhook.
-    const grossValue = asaasPayment.value;
-    const netValue = asaasPayment.netValue;
-    if (typeof grossValue === "number" && typeof netValue === "number") {
-      const feeUpdates = distributeFee(updatedSales, grossValue, netValue);
-      await Promise.all(
-        feeUpdates.map((update) =>
-          supabase.from("sales").update({ asaas_fee: update.asaas_fee, net_amount: update.net_amount }).eq("id", update.id)
-        )
+    // The Order response doesn't carry the fee breakdown, and its
+    // transactions.payments[].id is an Orders-API-only id that the classic
+    // GET /v1/payments/{id} doesn't recognize - search the classic Payments
+    // API by external_reference (== checkout_group_id) instead, confirmed
+    // against the sandbox to return the real fee_details/net_received_amount.
+    try {
+      const paymentSearchResponse = await fetch(
+        `https://api.mercadopago.com/v1/payments/search?external_reference=${sale.checkout_group_id}`,
+        { headers: { Authorization: `Bearer ${mercadoPagoAccessToken}` } }
       );
+      const paymentSearch = await paymentSearchResponse.json();
+      const paymentDetail = paymentSearch?.results?.[0];
+      const grossValue = paymentDetail?.transaction_amount;
+      const netValue = paymentDetail?.transaction_details?.net_received_amount;
+      if (typeof grossValue === "number" && typeof netValue === "number") {
+        const feeUpdates = distributeFee(updatedSales, grossValue, netValue);
+        await Promise.all(
+          feeUpdates.map((update) =>
+            supabase.from("sales").update({ asaas_fee: update.asaas_fee, net_amount: update.net_amount }).eq("id", update.id)
+          )
+        );
+      }
+    } catch (feeError) {
+      console.error("Failed to fetch/apply Mercado Pago fee breakdown:", feeError);
     }
 
     await supabase.from("funnel_events").insert({
@@ -142,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
       targetType: "sale",
       targetId: sale_id,
       targetLabel: `${describeGroup(updatedSales)} (${sale.buyer_email})`,
-      changes: { old: { payment_status: "pending" }, new: { payment_status: "paid", asaas_status: asaasPayment.status } },
+      changes: { old: { payment_status: "pending" }, new: { payment_status: "paid", mercadopago_status: order?.status } },
     });
 
     try {
@@ -165,7 +177,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     return new Response(
-      JSON.stringify({ confirmed: true, asaas_status: asaasPayment.status, sale: updatedSales.find((s: any) => s.id === sale_id) }),
+      JSON.stringify({ confirmed: true, mercadopago_status: order?.status, sale: updatedSales.find((s: any) => s.id === sale_id) }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
