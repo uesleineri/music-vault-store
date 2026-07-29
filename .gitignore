@@ -29,3 +29,6 @@ supabase/.temp/
 
 # Private continuity doc - kept local only, never pushed to GitHub
 CONTEXT.md
+
+# Never pushed to GitHub, even with empty/placeholder values
+.env
