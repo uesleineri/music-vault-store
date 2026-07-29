@@ -13,13 +13,14 @@ interface CardPaymentBrickProps {
   payerEmail: string;
   onSubmit: (data: CardTokenData) => Promise<void>;
   onError?: (error: unknown) => void;
+  onReady?: () => void;
 }
 
 // Mounts Mercado Pago's Card Payment Brick, which owns the entire card form
 // (number/name/expiry/cvv/installments) inside an iframe and only ever hands
 // this app a single-use token - the real card number never touches our code
 // or backend, satisfying PCI requirements without us building a card form.
-export function CardPaymentBrick({ mp, amount, payerEmail, onSubmit, onError }: CardPaymentBrickProps) {
+export function CardPaymentBrick({ mp, amount, payerEmail, onSubmit, onError, onReady }: CardPaymentBrickProps) {
   const containerId = useRef(`card-payment-brick-${Math.random().toString(36).slice(2)}`);
   const controllerRef = useRef<any>(null);
 
@@ -38,6 +39,11 @@ export function CardPaymentBrick({ mp, amount, payerEmail, onSubmit, onError }: 
         // is forwarded as-is; it only affects how the buyer's bank bills the
         // card, not the amount we charge.
         callbacks: {
+          // Mercado Pago's docs list onReady and onError as required callbacks
+          // ("missing_required_callbacks") - omitting onReady left the Brick
+          // stuck on its loading skeleton indefinitely instead of failing
+          // loudly, which is exactly the bug we chased for hours.
+          onReady: () => onReady?.(),
           onSubmit: (cardFormData: any) =>
             onSubmit({
               token: cardFormData.token,
